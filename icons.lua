@@ -1,0 +1,110 @@
+local settings = require("settings")
+
+local icons = {
+  sf_symbols = {
+    plus = "􀅼",
+    loading = "􀖇",
+    apple = "􀣺",
+    gear = "􀍟",
+    cpu = "􀫥",
+    clipboard = "􀉄",
+
+    -- App launchers and utilities
+    lm_studio = "􀞏",
+    onepassword = "􀎦",
+    quantumultx = "􀋞",
+    synergy = "􀈳",
+    time_machine = "􀐫",
+    lock = "􀎡",
+    translate = "🔍",
+
+    switch = {
+      on = "􁏮",
+      off = "􁏯",
+    },
+    volume = {
+      _100="􀊩",
+      _66="􀊧",
+      _33="􀊥",
+      _10="􀊡",
+      _0="􀊣",
+    },
+    battery = {
+      _100 = "􀛨",
+      _75 = "􀺸",
+      _50 = "􀺶",
+      _25 = "􀛩",
+      _0 = "􀛪",
+      charging = "􀢋"
+    },
+    wifi = {
+      upload = "􀄨",
+      download = "􀄩",
+      connected = "􀙇",
+      disconnected = "􀙈",
+      router = "􁓤",
+    },
+    media = {
+      back = "􀊊",
+      forward = "􀊌",
+      play_pause = "􀊈",
+    },
+  },
+
+  -- Alternative NerdFont icons
+  nerdfont = {
+    plus = "",
+    loading = "",
+    apple = "",
+    gear = "",
+    cpu = "",
+    clipboard = "", -- fa-paste (clipboard) in Nerd Font
+
+    -- App launchers and utilities
+    lm_studio = "", -- code
+    onepassword = "", -- key
+    quantumultx = "", -- globe/network
+    synergy = "", -- link
+    time_machine = "", -- history
+    lock = "",
+    translate = "", -- fa-language
+
+    switch = {
+      on = "󱨥",
+      off = "󱨦",
+    },
+    volume = {
+      _100="",
+      _66="",
+      _33="",
+      _10="",
+      _0="",
+    },
+    battery = {
+      _100 = "",
+      _75 = "",
+      _50 = "",
+      _25 = "",
+      _0 = "",
+      charging = ""
+    },
+    wifi = {
+      upload = "",
+      download = "",
+      connected = "󰖩",
+      disconnected = "󰖪",
+      router = ""
+    },
+    media = {
+      back = "",
+      forward = "",
+      play_pause = "",
+    },
+  },
+}
+
+if not (settings.icons == "NerdFont") then
+  return icons.sf_symbols
+else
+  return icons.nerdfont
+end

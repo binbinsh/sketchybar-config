@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>ai.superplanner.sketchybar_location</string>
+
+    <key>CFBundleName</key>
+    <string>SketchyBar Location Helper</string>
+
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+
+    <key>CFBundleExecutable</key>
+    <string>sketchybar_location</string>
+
+    <!-- Location permission descriptions (required!) -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>This tool needs your location to display weather information in Sketchybar.</string>
+
+    <key>NSLocationUsageDescription</key>
+    <string>This tool needs your location to display weather information in Sketchybar.</string>
+</dict>
+</plist>
