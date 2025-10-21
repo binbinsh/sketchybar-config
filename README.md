@@ -49,6 +49,10 @@ Widgets & Integrations
   - Left-click: opens 1Password Quick Access (Cmd+Shift+Space).
   - Right-click: opens the 1Password app.
 
+- **WeChat** (`items/widgets/wechat.lua`)
+  - Shows unread count via the Dock badge.
+  - Click: opens/activates WeChat.
+
 - **iStat Menus** (`items/widgets/istat_menus.lua`)
   - Automatically aliases the Combined menu extra when present and groups it in a bracket.
   - Click: opens Activity Monitor.
@@ -90,6 +94,11 @@ Optional setup
 
 - **Quantumult X**
   - Uses `curl` to query plain-text `ipinfo.io` endpoints for IP/location/ISP.
+
+- **WeChat**
+  - Requires the macOS WeChat app to be installed (`com.tencent.xinWeChat`).
+  - Recommended: enable App Icon Badges in System Settings → Notifications → WeChat.
+  - Recommended: allow “osascript” in System Settings → Privacy & Security → Accessibility.
 
 - **Synergy icons**
   - Follow the grayscale conversion steps in [Synergy Icon (Grayscale Idle; Colored on Hover)](#synergy-icon-grayscale-idle-colored-on-hover).
