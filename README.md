@@ -10,8 +10,7 @@ One-line install for sketchybar config (requires brew to be installed):
 curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/install_sketchybar.sh | sh
 ```
 
-Widgets & Integrations
-----------------------
+## Widgets & Integrations
 
 - **Front App** (`items/front_app.lua`)
   - Shows the currently active app name.
@@ -71,13 +70,12 @@ Widgets & Integrations
 - **Weather** (`items/widgets/weather.lua`)
   - Uses OpenWeather One Call API 3.0 for current weather conditions.
   - Retrieves API key from macOS Keychain: service `OPENWEATHERMAP_API_KEY` for account `$USER`.
-  - Left-click: toggle popup with centered title “📍 <place> (lat, lon)  ↻”; click the title to refresh now.
+  - Left-click: toggle popup with centered title “📍 `<place>` (lat, lon)  ↻”; click the title to refresh now.
   - Right-click: open OpenWeather map for your coordinates (fallback to the macOS Weather app).
   - Shows: Condition, Temperature, Feels like, Humidity, Wind, Pressure, Time zone, Sunrise, Sunset.
   - Auto-refreshes hourly; coordinates are acquired via a notarized helper app and reverse-geocoded via OpenStreetMap Nominatim.
 
-Optional setup
---------------
+## Optional setup
 
 - **LM Studio CLI**
   - Install with `~/.lmstudio/bin/lms bootstrap` (or ensure `lms` is on your PATH). The popup provides an install hint if missing.
@@ -115,8 +113,49 @@ Optional setup
     ```
   - Note: After registration, wait 1–2 hours for the API key to become active.
 
-Synergy Icon (Grayscale Idle; Colored on Hover)
-----------------------
+## SketchyBar Location Helper
+
+- What it is: a tiny, bundled app at `helpers/event_providers/location/bin/SketchyBarLocationHelper.app` that gets your current coordinates via Core Location and writes them to a cache file read by the Weather widget.
+- Why: avoid external dependencies and get user-approved location with proper macOS prompts.
+- How it works:
+  - On demand, `items/widgets/weather.lua` runs:
+    - `open -W ~/.config/sketchybar/helpers/event_providers/location/bin/SketchyBarLocationHelper.app`
+  - The helper requests When-In-Use authorization (first run shows a system prompt) and fetches one-shot location.
+  - It writes a cache line to `~/.cache/sketchybar/location.txt` in the format: `ts|lat|lon|label` (the label is filled later by reverse geocoding).
+  - The weather widget reads the coordinates, reverse-geocodes a human-friendly place name via OpenStreetMap, caches it, then queries OpenWeather.
+- Permissions:
+  - First run will show a Location Services prompt for “SketchyBar Location Helper”. Approve “While Using the App”.
+  - You can manage this under System Settings → Privacy & Security → Location Services.
+- Troubleshooting:
+  - If it times out (~15s) or shows “⚠️LOC” on the bar, re-run the weather widget or check Location Services are enabled.
+  - Delete caches and retry: `rm -f ~/.cache/sketchybar/location.txt ~/.cache/sketchybar/weather.txt`.
+
+## Space icons (no yabai) — `space_scan`
+
+- What it is: a tiny C helper at `helpers/event_providers/space_scan/space_scan.c` that scans the currently active Space for on-screen app windows and publishes a `space_snapshot` event consumed by `items/spaces.lua` to render per-space app icons.
+- Why: ensure the Space indicator shows correct icons at bar startup and after Space switches, without relying on yabai.
+- How it works:
+  - Enumerates on-screen windows via CoreGraphics (layer 0 only) and counts them per owning app.
+  - Uses private SkyLight entry points to determine the current Space index on the main display.
+  - Emits a SketchyBar event:
+    - event name: `space_snapshot`
+    - payload: `space='<index>' apps='AppA:2|AppB:1|…'`
+  - `items/spaces.lua` subscribes to `space_snapshot` and updates the label of the corresponding `space.<index>` item immediately.
+- When it runs:
+  - Automatically on bar startup and on every `space_change` (wired in `items/spaces.lua`).
+  - Can also be invoked manually:
+
+```bash
+$CONFIG_DIR/helpers/event_providers/space_scan/bin/space_scan
+```
+
+- Build/install: compiled automatically by `helpers/makefile` when SketchyBar starts (see `helpers/init.lua`).
+- Limitations:
+  - Uses SkyLight (private) APIs; behavior may change across macOS releases.
+  - Scans the active Space only; other Spaces are initialized to “ —” until you switch to them. If you need all Spaces populated at once, extend the helper to map windows to all Spaces before emitting events.
+
+## Synergy Icon (Grayscale Idle; Colored on Hover)
+
 `items/widgets/synergy.lua` expects a grayscale icon at `~/.config/sketchybar/icons/synergy_gray.png`.
 Create it once from your color icon using macOS `sips`:
 

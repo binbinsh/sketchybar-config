@@ -148,6 +148,40 @@ space_window_observer:subscribe("space_windows_change", function(env)
   end)
 end)
 
+-- Consume one-shot C helper snapshot (space_scan)
+space_window_observer:subscribe("space_snapshot", function(env)
+  local i = tonumber(env.space)
+  local icon_line = ""
+  if env.apps and env.apps ~= "" then
+    for token in string.gmatch(env.apps, "[^|]+") do
+      local app = string.match(token, "([^:]+)") or token
+      local lookup = app_icons[app]
+      local icon = ((lookup == nil) and app_icons["Default"] or lookup)
+      icon_line = icon_line .. icon
+    end
+  else
+    icon_line = " —"
+  end
+  if i ~= nil and spaces[i] ~= nil then
+    spaces[i]:set({ label = { string = icon_line } })
+  end
+end)
+
+-- On space change, rescan once to refresh labels for all spaces
+space_window_observer:subscribe("space_change", function(_)
+  sbar.exec("$CONFIG_DIR/helpers/event_providers/space_scan/bin/space_scan")
+end)
+
+-- Initialize labels on startup
+for i = 1, 10 do
+  if spaces[i] ~= nil then
+    spaces[i]:set({ label = { string = " —" } })
+  end
+end
+
+-- Kick off initial snapshot
+sbar.exec("$CONFIG_DIR/helpers/event_providers/space_scan/bin/space_scan")
+
 spaces_indicator:subscribe("swap_menus_and_spaces", function(env)
   local currently_on = spaces_indicator:query().icon.value == icons.switch.on
   spaces_indicator:set({
