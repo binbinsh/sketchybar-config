@@ -157,6 +157,142 @@ local router = sbar.add("item", {
   },
 })
 
+-- Additional Wi‑Fi details (hidden by default; shown when values are available)
+local bssid_item = sbar.add("item", {
+  position = "popup." .. wifi.name,
+  drawing = false,
+  icon = {
+    align = "left",
+    string = "BSSID:",
+    width = popup_width / 2,
+  },
+  label = {
+    string = "…",
+    width = popup_width / 2,
+    align = "right",
+  },
+})
+
+local phy_item = sbar.add("item", {
+  position = "popup." .. wifi.name,
+  drawing = false,
+  icon = {
+    align = "left",
+    string = "PHY Mode:",
+    width = popup_width / 2,
+  },
+  label = {
+    string = "…",
+    width = popup_width / 2,
+    align = "right",
+  },
+})
+
+local channel_item = sbar.add("item", {
+  position = "popup." .. wifi.name,
+  drawing = false,
+  icon = {
+    align = "left",
+    string = "Channel:",
+    width = popup_width / 2,
+  },
+  label = {
+    string = "…",
+    width = popup_width / 2,
+    align = "right",
+  },
+})
+
+local security_item = sbar.add("item", {
+  position = "popup." .. wifi.name,
+  drawing = false,
+  icon = {
+    align = "left",
+    string = "Security:",
+    width = popup_width / 2,
+  },
+  label = {
+    string = "…",
+    width = popup_width / 2,
+    align = "right",
+  },
+})
+
+local signal_item = sbar.add("item", {
+  position = "popup." .. wifi.name,
+  drawing = false,
+  icon = {
+    align = "left",
+    string = "S / N:",
+    width = popup_width / 2,
+  },
+  label = {
+    string = "…",
+    width = popup_width / 2,
+    align = "right",
+  },
+})
+
+local tx_item = sbar.add("item", {
+  position = "popup." .. wifi.name,
+  drawing = false,
+  icon = {
+    align = "left",
+    string = "Transmit Rate:",
+    width = popup_width / 2,
+  },
+  label = {
+    string = "…",
+    width = popup_width / 2,
+    align = "right",
+  },
+})
+
+local mcs_item = sbar.add("item", {
+  position = "popup." .. wifi.name,
+  drawing = false,
+  icon = {
+    align = "left",
+    string = "MCS Index:",
+    width = popup_width / 2,
+  },
+  label = {
+    string = "…",
+    width = popup_width / 2,
+    align = "right",
+  },
+})
+
+local cc_item = sbar.add("item", {
+  position = "popup." .. wifi.name,
+  drawing = false,
+  icon = {
+    align = "left",
+    string = "Country Code:",
+    width = popup_width / 2,
+  },
+  label = {
+    string = "…",
+    width = popup_width / 2,
+    align = "right",
+  },
+})
+
+local adapter_mac_item = sbar.add("item", {
+  position = "popup." .. wifi.name,
+  drawing = false,
+  icon = {
+    align = "left",
+    string = "Adapter MAC:",
+    width = popup_width / 2,
+  },
+  label = {
+    string = "…",
+    width = popup_width / 2,
+    align = "right",
+  },
+})
+
 sbar.add("item", { position = "right", width = settings.group_paddings })
 
 wifi_up:subscribe("network_update", function(env)
@@ -197,8 +333,76 @@ local function populate_wifi_details()
   sbar.exec("ipconfig getifaddr en0", function(result)
     ip:set({ label = result })
   end)
-  sbar.exec("system_profiler SPAirPortDataType | awk '/Current Network Information:/{getline; sub(/^[[:space:]]+/,\"\"); sub(/:$/,\"\"); print; exit}'", function(result)
-    ssid:set({ label = result })
+  -- Single system_profiler call to fetch current Wi‑Fi details
+  sbar.exec("system_profiler SPAirPortDataType", function(sp)
+    local function parse_sp_airport(output)
+      local r = {}
+      local in_en0 = false
+      local in_current = false
+      for line in string.gmatch(output or "", "[^\r\n]+") do
+        if not in_en0 then
+          if line:match("^%s*en0:%s*$") then
+            in_en0 = true
+          end
+        else
+          if not in_current then
+            local mac = line:match("^%s*MAC Address:%s*(.+)$")
+            if mac then r.adapter_mac = mac end
+            if line:match("^%s*Current Network Information:%s*$") then
+              in_current = true
+            end
+            if line:match("^%s*%w[%w%d]+:%s*$") and not line:match("^%s*en0:%s*$") then
+              break
+            end
+          else
+            if line:match("^%s*Other Local Wi%-Fi Networks:%s*$") then
+              break
+            end
+            if not r.ssid then
+              local ss = line:match("^%s*(.-):%s*$")
+              if ss and ss ~= "" then r.ssid = ss end
+            else
+              local key, value = line:match("^%s*([%w%s%/%-]+):%s*(.+)$")
+              if key and value then
+                key = key:gsub("%s+$", "")
+                if key == "PHY Mode" then r.phy_mode = value
+                elseif key == "Channel" then r.channel = value
+                elseif key == "Country Code" then r.country_code = value
+                elseif key == "Security" then r.security = value
+                elseif key == "Signal / Noise" then r.signal_noise = value
+                elseif key == "Transmit Rate" then r.tx_rate = value
+                elseif key == "MCS Index" then r.mcs_index = value
+                elseif key == "BSSID" then r.bssid = value
+                end
+              end
+            end
+          end
+        end
+      end
+      return r
+    end
+
+    local vals = parse_sp_airport(sp)
+    if vals.ssid and vals.ssid ~= "" then ssid:set({ label = vals.ssid }) end
+
+    local function set_opt(item, value)
+      if not item then return end
+      if value and value ~= "" then
+        item:set({ drawing = true, label = value })
+      else
+        item:set({ drawing = false })
+      end
+    end
+
+    set_opt(bssid_item, vals.bssid)
+    set_opt(phy_item, vals.phy_mode)
+    set_opt(channel_item, vals.channel)
+    set_opt(security_item, vals.security)
+    set_opt(signal_item, vals.signal_noise)
+    set_opt(tx_item, vals.tx_rate)
+    set_opt(mcs_item, vals.mcs_index)
+    set_opt(cc_item, vals.country_code)
+    set_opt(adapter_mac_item, vals.adapter_mac)
   end)
   sbar.exec("networksetup -getinfo Wi-Fi | awk -F 'Subnet mask: ' '/^Subnet mask: / {print $2}'", function(result)
     mask:set({ label = result })
@@ -235,3 +439,12 @@ hostname:subscribe("mouse.clicked", copy_label_to_clipboard)
 ip:subscribe("mouse.clicked", copy_label_to_clipboard)
 mask:subscribe("mouse.clicked", copy_label_to_clipboard)
 router:subscribe("mouse.clicked", copy_label_to_clipboard)
+bssid_item:subscribe("mouse.clicked", copy_label_to_clipboard)
+phy_item:subscribe("mouse.clicked", copy_label_to_clipboard)
+channel_item:subscribe("mouse.clicked", copy_label_to_clipboard)
+security_item:subscribe("mouse.clicked", copy_label_to_clipboard)
+signal_item:subscribe("mouse.clicked", copy_label_to_clipboard)
+tx_item:subscribe("mouse.clicked", copy_label_to_clipboard)
+mcs_item:subscribe("mouse.clicked", copy_label_to_clipboard)
+cc_item:subscribe("mouse.clicked", copy_label_to_clipboard)
+adapter_mac_item:subscribe("mouse.clicked", copy_label_to_clipboard)
