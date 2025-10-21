@@ -208,15 +208,17 @@ local function populate_wifi_details()
   end)
 end
 
-wifi_up:subscribe("mouse.clicked", function(_)
+local function wifi_on_click(env)
+  if env.BUTTON == "right" then
+    sbar.exec("open 'x-apple.systempreferences:com.apple.wifi-settings-extension' || open 'x-apple.systempreferences:com.apple.Network-Settings.extension'")
+    return
+  end
   popup.toggle(wifi, populate_wifi_details)
-end)
-wifi_down:subscribe("mouse.clicked", function(_)
-  popup.toggle(wifi, populate_wifi_details)
-end)
-wifi:subscribe("mouse.clicked", function(_)
-  popup.toggle(wifi, populate_wifi_details)
-end)
+end
+
+wifi_up:subscribe("mouse.clicked", wifi_on_click)
+wifi_down:subscribe("mouse.clicked", wifi_on_click)
+wifi:subscribe("mouse.clicked", wifi_on_click)
 popup.auto_hide(wifi)
 
 local function copy_label_to_clipboard(env)
