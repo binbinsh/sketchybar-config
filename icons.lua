@@ -49,6 +49,7 @@ local icons = {
       forward = "􀊌",
       play_pause = "􀊈",
     },
+    refresh = "", -- arrow.triangle.2.circlepath
   },
 
   -- Alternative NerdFont icons
@@ -100,6 +101,7 @@ local icons = {
       forward = "",
       play_pause = "",
     },
+    refresh = "", -- nf fallback
   },
 }
 

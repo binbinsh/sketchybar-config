@@ -3,9 +3,12 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>ai.superplanner.sketchybar_location</string>
+    <string>ai.superplanner.SketchyBarLocationHelper</string>
 
     <key>CFBundleName</key>
+    <string>SketchyBarLocationHelper</string>
+
+    <key>CFBundleDisplayName</key>
     <string>SketchyBar Location Helper</string>
 
     <key>CFBundleVersion</key>
@@ -15,13 +18,20 @@
     <string>1.0.0</string>
 
     <key>CFBundleExecutable</key>
-    <string>sketchybar_location</string>
+    <string>SketchyBarLocationHelper</string>
 
-    <!-- Location permission descriptions (required!) -->
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>LSUIElement</key>
+    <true/>
+
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>This tool needs your location to display weather information in Sketchybar.</string>
+    <string>This tool needs your location to display weather information in SketchyBar.</string>
 
     <key>NSLocationUsageDescription</key>
-    <string>This tool needs your location to display weather information in Sketchybar.</string>
+    <string>This tool needs your location to display weather information in SketchyBar.</string>
 </dict>
 </plist>
+
+

@@ -44,8 +44,8 @@ end)
 local check_cmd = [=[/bin/zsh -lc '
 main="stopped"
 if /usr/bin/osascript -e "tell application \"System Events\" to (exists process \"Synergy\")" | grep -qi true; then main="running"; fi
-server="stopped"; if /bin/ps -axo command= | /usr/bin/grep -E -q "(^|/)synergy-server([[:space:]]|$)"; then server="running"; fi
-client="stopped"; if /bin/ps -axo command= | /usr/bin/grep -E -q "(^|/)synergy-client([[:space:]]|$)"; then client="running"; fi
+server="stopped"; if /usr/bin/pgrep -f -q "(^|/)synergy-server([[:space:]]|$)"; then server="running"; fi
+client="stopped"; if /usr/bin/pgrep -f -q "(^|/)synergy-client([[:space:]]|$)"; then client="running"; fi
 echo "main:$main"
 echo "server:$server"
 echo "client:$client"

@@ -1,14 +1,15 @@
 local colors = require("colors")
 local settings = require("settings")
 local popup = require("helpers.popup")
+local icons = require("icons")
 
 local cache_dir = os.getenv("HOME") .. "/.cache/sketchybar"
 local weather_cache = cache_dir .. "/weather.txt"
 local location_cache = cache_dir .. "/location.txt"
 
 local popup_width = 250
-local weather_cache_ttl = 300     -- 5 minutes
-local location_cache_ttl = 3600   -- 1 hour
+local weather_cache_ttl = 3600    -- 1 hour
+local location_cache_ttl = 1800   -- 30 minutes
 
 -- Ensure cache dir exists
 sbar.exec("/bin/zsh -lc 'mkdir -p " .. cache_dir .. "'")
@@ -53,6 +54,11 @@ end
 local function exec(cmd, callback)
   sbar.exec(cmd, callback)
 end
+
+-- Use rotating SF Symbol for manual refresh animation
+local update_popup_contents
+local title_item
+
 
 local function owm_icon_for(id, is_day)
   id = tonumber(id) or 800
@@ -136,20 +142,33 @@ local function get_api_key(callback)
   end)
 end
 
-local function get_location_label(callback)
-  -- Get ipinfo city/country (fast, no JSON parsing needed except separate calls)
-  sbar.exec("/bin/zsh -lc 'curl -m 2 -s https://ipinfo.io/city'", function(city)
-    city = trim_newline(city)
-    sbar.exec("/bin/zsh -lc 'curl -m 2 -s https://ipinfo.io/country'", function(country)
-      country = trim_newline(country)
-      if city ~= "" and country ~= "" then
-        callback(city .. ", " .. country)
-      elseif city ~= "" then
-        callback(city)
-      else
-        callback(nil)
-      end
-    end)
+-- Reverse geocode coordinates to a human-friendly place name using
+-- OpenStreetMap Nominatim (no API key required). We parse JSON via JXA.
+local function reverse_geocode_label(lat, lon, callback)
+  local url = string.format(
+    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=%s&lon=%s&zoom=12&addressdetails=1",
+    lat, lon
+  )
+  local js_lines = {
+    "function run(argv) {",
+    "  var url = argv[0];",
+    "  var app = Application.currentApplication();",
+    "  app.includeStandardAdditions = true;",
+    "  var cmd = '/usr/bin/curl -m 4 -H ' + JSON.stringify('User-Agent: sketchybar-weather') + ' -s ' + JSON.stringify(url);",
+    "  var s = app.doShellScript(cmd);",
+    "  try {",
+    "    var j = JSON.parse(s);",
+    "    var a = j.address || {};",
+    "    var label = a.neighbourhood || a.suburb || a.quarter || a.residential || a.hamlet || a.village || a.town || a.city_district || a.district || a.city || a.county || a.state || a.country || '';",
+    "    if (!label && j.name) label = j.name;",
+    "    if (!label && j.display_name) label = (j.display_name.split(',')[0]||'').trim();",
+    "    return label;",
+    "  } catch (e) { return ''; }",
+    "}"
+  }
+  exec(build_jxa_cmd(js_lines, url), function(out)
+    out = trim_newline(out or "")
+    callback(out ~= "" and out or nil)
   end)
 end
 
@@ -167,15 +186,18 @@ local function resolve_location(callback)
     end
   end
 
-  -- Use native CoreLocation helper (first run may prompt for permission)
-  local base = os.getenv("HOME") .. "/.config/sketchybar/helpers/event_providers/location/bin/location"
-  local cmd = "/bin/zsh -lc '" .. base .. " 2>/dev/null | head -n1'"
-  exec(cmd, function(out)
-    local loc = trim_newline(out or "")
-    if loc ~= "" and loc:find(",", 1, true) then
-      local lat, lon = table.unpack(split(loc, ","))
-      get_location_label(function(label)
-        label = label or ""
+  -- Launch the .app (blocks until exit), then read cache file directly
+  local app_bundle = os.getenv("HOME") .. "/.config/sketchybar/helpers/event_providers/location/bin/SketchyBarLocationHelper.app"
+  local cmd = "/bin/zsh -lc 'open -W " .. app_bundle .. " >/dev/null 2>&1'"
+  exec(cmd, function(_)
+    local raw = read_file(location_cache)
+    raw = trim_newline(raw or "")
+    local parts = split(raw, "|")
+    if #parts >= 3 then
+      local lat = parts[2]
+      local lon = parts[3]
+      reverse_geocode_label(lat, lon, function(label)
+        if not label or label == "" then label = "" end
         write_file(location_cache, string.format("%d|%s|%s|%s", os.time(), lat, lon, label))
         callback({ lat = lat, lon = lon, label = label })
       end)
@@ -188,7 +210,7 @@ end
 local weather = sbar.add("item", "widgets.weather", {
   position = "right",
   icon = {
-    string = "🌡",
+    string = "☁️",
     align = "left",
     color = colors.white,
     font = {
@@ -223,41 +245,75 @@ sbar.add("item", { position = "right", width = settings.group_paddings })
 local left_col_w = math.floor(popup_width * 0.55)
 local right_col_w = popup_width - left_col_w
 
-local location_item = sbar.add("item", {
+-- Title row (centered) like Wi‑Fi popup title
+local title_item = sbar.add("item", {
   position = "popup." .. weather_bracket.name,
-  icon = { string = "📍", align = "left", width = left_col_w },
-  label = { string = "—", align = "right", width = right_col_w },
+  icon = {
+    font = { style = settings.font.style_map["Bold"] },
+    string = "📍",
+  },
+  width = popup_width,
+  align = "center",
+  label = {
+    font = { size = 15, style = settings.font.style_map["Bold"] },
+    string = "—",
+  },
+  background = { height = 2, color = colors.grey, y_offset = -15 },
 })
 
-local summary_item = sbar.add("item", {
+-- Detail rows: English text on the left, value on the right
+local cond_item = sbar.add("item", {
   position = "popup." .. weather_bracket.name,
-  icon = { string = "☁️", align = "left", width = left_col_w },
-  label = { string = "—", align = "right", width = right_col_w },
+  icon = { align = "left", string = "Condition:", width = left_col_w },
+  label = { align = "right", string = "—", width = right_col_w },
 })
 
-local separator_item = sbar.add("item", {
+local temp_item = sbar.add("item", {
   position = "popup." .. weather_bracket.name,
-  icon = { drawing = false },
-  label = { drawing = false },
-  background = { color = colors.grey, height = 1, y_offset = -8 },
+  icon = { align = "left", string = "Temperature:", width = left_col_w },
+  label = { align = "right", string = "—", width = right_col_w },
+})
+
+local feels_item = sbar.add("item", {
+  position = "popup." .. weather_bracket.name,
+  icon = { align = "left", string = "Feels like:", width = left_col_w },
+  label = { align = "right", string = "—", width = right_col_w },
 })
 
 local humidity_item = sbar.add("item", {
   position = "popup." .. weather_bracket.name,
-  icon = { string = "💧", align = "left", width = left_col_w },
-  label = { string = "—", align = "right", width = right_col_w },
+  icon = { align = "left", string = "Humidity:", width = left_col_w },
+  label = { align = "right", string = "—", width = right_col_w },
 })
 
 local wind_item = sbar.add("item", {
   position = "popup." .. weather_bracket.name,
-  icon = { string = "💨", align = "left", width = left_col_w },
-  label = { string = "—", align = "right", width = right_col_w },
+  icon = { align = "left", string = "Wind:", width = left_col_w },
+  label = { align = "right", string = "—", width = right_col_w },
 })
 
 local pressure_item = sbar.add("item", {
   position = "popup." .. weather_bracket.name,
-  icon = { string = "🔵", align = "left", width = left_col_w },
-  label = { string = "—", align = "right", width = right_col_w },
+  icon = { align = "left", string = "Pressure:", width = left_col_w },
+  label = { align = "right", string = "—", width = right_col_w },
+})
+
+local tz_item = sbar.add("item", {
+  position = "popup." .. weather_bracket.name,
+  icon = { align = "left", string = "Time zone:", width = left_col_w },
+  label = { align = "right", string = "—", width = right_col_w },
+})
+
+local sunrise_item = sbar.add("item", {
+  position = "popup." .. weather_bracket.name,
+  icon = { align = "left", string = "Sunrise:", width = left_col_w },
+  label = { align = "right", string = "—", width = right_col_w },
+})
+
+local sunset_item = sbar.add("item", {
+  position = "popup." .. weather_bracket.name,
+  icon = { align = "left", string = "Sunset:", width = left_col_w },
+  label = { align = "right", string = "—", width = right_col_w },
 })
 
 local current_data = nil
@@ -265,13 +321,33 @@ local current_location_label = nil
 
 local function update_popup_contents()
   if not current_data then return end
-  local desc = current_data.desc or ""
-  local line1 = string.format("%s°C  (feels like %s°C)  %s", math.floor(current_data.temp + 0.5), math.floor(current_data.feels + 0.5), desc)
-  summary_item:set({ label = line1 })
-  location_item:set({ label = current_location_label or (current_data.tz or "") })
-  humidity_item:set({ label = tostring(current_data.humidity) .. "%" })
+  local name = current_location_label
+  local latn = tonumber(current_data.lat or "")
+  local lonn = tonumber(current_data.lon or "")
+  local coord_text = ""
+  if latn and lonn then
+    local lat_i = select(1, math.modf(latn))
+    local lon_i = select(1, math.modf(lonn))
+    coord_text = string.format("(%d, %d)", lat_i, lon_i)
+  end
+  local title_text
+  if name and name ~= "" then
+    title_text = coord_text ~= "" and (name .. " " .. coord_text) or name
+  else
+    title_text = coord_text ~= "" and coord_text or "Location"
+  end
+  title_item:set({ label = title_text .. "  " .. icons.refresh })
+  cond_item:set({ label = current_data.desc or "" })
+  temp_item:set({ label = tostring(math.floor((current_data.temp or 0) + 0.5)) .. "°C" })
+  feels_item:set({ label = tostring(math.floor((current_data.feels or 0) + 0.5)) .. "°C" })
+  humidity_item:set({ label = tostring(current_data.humidity or 0) .. "%" })
   wind_item:set({ label = string.format("%.1f m/s", current_data.wind or 0) })
-  pressure_item:set({ label = tostring(current_data.pressure) .. " hPa" })
+  pressure_item:set({ label = tostring(current_data.pressure or 0) .. " hPa" })
+  tz_item:set({ label = current_data.tz or "" })
+  local sr = tonumber(current_data.sunrise or 0)
+  local ss = tonumber(current_data.sunset or 0)
+  if sr and sr > 0 then sunrise_item:set({ label = os.date("%H:%M", sr) }) end
+  if ss and ss > 0 then sunset_item:set({ label = os.date("%H:%M", ss) }) end
 end
 
 local function apply_weather_to_ui(data)
@@ -339,10 +415,6 @@ local function do_fetch(lat, lon, api_key)
     if not data then return end
     data.lat = lat
     data.lon = lon
-    if not current_location_label or current_location_label == "" then
-      -- if no label, fall back to timezone
-      current_location_label = data.tz or current_location_label
-    end
     write_weather_cache(data)
     apply_weather_to_ui(data)
   end)
@@ -395,24 +467,33 @@ local function on_click(env)
     end
     return
   end
-  if env.BUTTON == "middle" then
-    -- Force refresh: drop caches
-    sbar.exec("/bin/zsh -lc 'rm -f " .. weather_cache .. " " .. location_cache .. "'", function()
-      refresh(true)
-    end)
-    return
-  end
   -- left click: toggle popup; fill contents on show
   popup.toggle(weather_bracket, update_popup_contents)
 end
 
 weather:subscribe("mouse.clicked", on_click)
+title_item:subscribe("mouse.clicked", function(_)
+  -- Clear caches and clear popup contents immediately
+  cond_item:set({ label = "—" })
+  temp_item:set({ label = "—" })
+  feels_item:set({ label = "—" })
+  humidity_item:set({ label = "—" })
+  wind_item:set({ label = "—" })
+  pressure_item:set({ label = "—" })
+  tz_item:set({ label = "—" })
+  sunrise_item:set({ label = "—" })
+  sunset_item:set({ label = "—" })
+  title_item:set({ label = (current_location_label or "—") .. "  " .. icons.refresh })
+  current_data = nil
+  sbar.exec("/bin/zsh -lc 'rm -f " .. weather_cache .. " " .. location_cache .. "'", function()
+    refresh(true)
+  end)
+end)
 weather_bracket:subscribe("mouse.exited.global", function(_) popup.hide(weather_bracket) end)
 
--- Periodic updates and initial paint
--- Update once per 5 minutes (300s) to align with cache TTL and avoid spam
-weather:set({ updates = true, update_freq = 300 })
+-- Periodic updates and initial paint (hourly)
+weather:set({ updates = true, update_freq = weather_cache_ttl })
 
 weather:subscribe("routine", function(_) refresh(false) end)
 
-refresh(false)
+refresh(true)

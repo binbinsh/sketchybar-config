@@ -1,7 +1,7 @@
 require("items.widgets.istat_menus")
 require("items.widgets.volume")
-require("items.widgets.weather")
 require("items.widgets.wifi")
+require("items.widgets.weather")
 require("items.widgets.synergy")
 require("items.widgets.time_machine")
 require("items.widgets.quantumultx")

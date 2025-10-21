@@ -71,10 +71,10 @@ Widgets & Integrations
 - **Weather** (`items/widgets/weather.lua`)
   - Uses OpenWeather One Call API 3.0 for current weather conditions.
   - Retrieves API key from macOS Keychain: service `OPENWEATHERMAP_API_KEY` for account `$USER`.
-  - Left-click: toggle popup with location, temp/feels-like, description, humidity, wind, pressure.
-  - Right-click: open OpenWeather map for your coordinates (fallback to the macOS Weather app if unavailable).
-  - Polls every 5 minutes per docs; local 5-minute cache to avoid 429 and reduce cost.
-  - Location: uses a native CoreLocation helper (`helpers/event_providers/location/bin/location`). On first run macOS will prompt for permission.
+  - Left-click: toggle popup with centered title “📍 <place> (lat, lon)  ↻”; click the title to refresh now.
+  - Right-click: open OpenWeather map for your coordinates (fallback to the macOS Weather app).
+  - Shows: Condition, Temperature, Feels like, Humidity, Wind, Pressure, Time zone, Sunrise, Sunset.
+  - Auto-refreshes hourly; coordinates are acquired via a notarized helper app and reverse-geocoded via OpenStreetMap Nominatim.
 
 Optional setup
 --------------
