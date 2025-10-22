@@ -8,7 +8,7 @@ local weather_cache = cache_dir .. "/weather.txt"
 local location_cache = cache_dir .. "/location.txt"
 
 local popup_width = 250
-local weather_cache_ttl = 3600    -- 1 hour
+local weather_cache_ttl = 600    -- 10 minutes
 local location_cache_ttl = 1800   -- 30 minutes
 
 -- Ensure cache dir exists
