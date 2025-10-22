@@ -54,16 +54,19 @@ mkdir -p "$HOME/.hammerspoon"
 cat > "$HOME/.hammerspoon/init.lua" <<'EOF'
 hs.window.animationDuration = 0
 
-local TOP_PADDING = 32  -- SketchyBar bar height from sketchybarrc
+-- SketchyBar bar height from sketchybarrc
+local TOP_PADDING = 32
 local wf = hs.window.filter.new():setCurrentSpace(true)
 
+-- Ensure windows don't cover the top bar by enforcing TOP_PADDING gap
 local function clampTop(win)
   if not win or not win:isStandard() or win:isFullScreen() then return end
   local screen = win:screen()
   if not screen then return end
   local full = screen:fullFrame()
+  local usable = screen:frame()
   local f = win:frame()
-  if f.y <= full.y + 1 then
+  if (f.y <= full.y + 1) or (f.y <= usable.y + 1) then
     local targetY = full.y + TOP_PADDING
     local targetH = math.min(f.h, full.h - TOP_PADDING)
     if math.abs(f.y - targetY) > 0.5 or math.abs(f.h - targetH) > 0.5 then
@@ -80,6 +83,40 @@ wf:subscribe({
 }, function(win, appName, event)
   clampTop(win)
 end, true)
+
+-- Intercept apps' titlebar double-click to apply top-padding maximize
+do
+  local swallowNextUp = false
+  local tap = hs.eventtap.new({
+    hs.eventtap.event.types.leftMouseDown,
+    hs.eventtap.event.types.leftMouseUp,
+  }, function(ev)
+    local et = ev:getType()
+    if et == hs.eventtap.event.types.leftMouseDown then
+      local clickState = ev:getProperty(hs.eventtap.event.properties.mouseEventClickState)
+      if clickState == 2 then
+        local win = hs.window.frontmostWindow()
+        if not win then return false end
+        local pos = hs.mouse.absolutePosition()
+        local f = win:frame()
+        local titlebarHeight = 60
+        if pos.x >= f.x and pos.x <= f.x + f.w and pos.y >= f.y and pos.y <= f.y + titlebarHeight then
+          local full = win:screen():fullFrame()
+          win:setFrame({x = full.x, y = full.y + TOP_PADDING, w = full.w, h = full.h - TOP_PADDING}, 0)
+          swallowNextUp = true
+          return true
+        end
+      end
+    elseif et == hs.eventtap.event.types.leftMouseUp then
+      if swallowNextUp then
+        swallowNextUp = false
+        return true
+      end
+    end
+    return false
+  end)
+  tap:start()
+end
 
 hs.hotkey.bind({"alt", "shift"}, "M", function()
   local win = hs.window.focusedWindow()

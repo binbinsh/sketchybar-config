@@ -78,7 +78,7 @@ curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/instal
 - **Now Playing** (`items/widgets/now_playing.lua`)
   - Displays currently playing track metadata (title, artist, album).
   - Supports **Apple Music**, **Spotify**, and **YouTube Music** (via custom browser extension).
-  - For YouTube Music support in Chrome, see [Now Playing: YouTube Music bridge](#now-playing-youtube-music-bridge-extension--native-messaging).
+  - For YouTube Music support in Chrome, see [Optional setup#YouTube Music Bridge (Chrome/Brave Extension)](#optional-setup).
 
 
 ## Optional setup
@@ -131,7 +131,7 @@ curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/instal
   - Restart the browser (`chrome://restart` or `brave://restart`), then play/pause on `https://music.youtube.com` to validate.
   - Screenshot showing the Extension ID:
     
-    <img width="600" src="helpers/event_providers/now_playing/extension/screenshot.png">
+    <img width="400" src="helpers/event_providers/now_playing/extension/screenshot.png">
 
 ## `now_playing` Event Provider
 
@@ -165,7 +165,7 @@ curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/instal
   - If it times out (~15s) or shows “⚠️LOC” on the bar, re-run the weather widget or check Location Services are enabled.
   - Delete caches and retry: `rm -f ~/.cache/sketchybar/location.txt ~/.cache/sketchybar/weather.txt`.
 
-## Space icons (no yabai) — `space_scan`
+## Space snapshot scan without yabai
 
 - What it is: a tiny C helper at `helpers/event_providers/space_scan/space_scan.c` that scans the currently active Space for on-screen app windows and publishes a `space_snapshot` event consumed by `items/spaces.lua` to render per-space app icons.
 - Why: ensure the Space indicator shows correct icons at bar startup and after Space switches, without relying on yabai.
