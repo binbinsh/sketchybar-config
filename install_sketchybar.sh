@@ -1,7 +1,6 @@
 echo "Installing Dependencies"
 # Packages
 brew install lua
-brew install nowplaying-cli
 
 brew tap FelixKratz/formulae
 brew install sketchybar

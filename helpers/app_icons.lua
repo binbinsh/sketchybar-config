@@ -317,4 +317,5 @@ return {
 	["BBEdit"] = ":text:",
 	["Texifier"] = ":text:",
 	["DEVONthink"] = ":devonthink3:",
+	["YouTube Music"] = ":youtube_music:",
 }

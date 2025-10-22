@@ -75,6 +75,12 @@ curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/instal
   - Shows: Condition, Temperature, Feels like, Humidity, Wind, Pressure, Time zone, Sunrise, Sunset.
   - Auto-refreshes hourly; coordinates are acquired via a notarized helper app and reverse-geocoded via OpenStreetMap Nominatim.
 
+- **Now Playing** (`items/widgets/now_playing.lua`)
+  - Displays currently playing track metadata (title, artist, album).
+  - Supports **Apple Music**, **Spotify**, and **YouTube Music** (via custom browser extension).
+  - For YouTube Music support in Chrome, see [Now Playing: YouTube Music bridge](#now-playing-youtube-music-bridge-extension--native-messaging).
+
+
 ## Optional setup
 
 - **LM Studio CLI**
@@ -112,6 +118,35 @@ curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/instal
     security find-generic-password -a "$USER" -s OPENWEATHERMAP_API_KEY -w
     ```
   - Note: After registration, wait 1–2 hours for the API key to become active.
+
+- **YouTube Music Bridge (Chrome/Brave Extension)**
+  - Load the unpacked extension from `helpers/event_providers/now_playing/extension/`:
+    - Open `chrome://extensions`, enable Developer mode, click "Load unpacked" → select the extension folder.
+    - Copy the Extension ID shown on the extension card (see screenshot below).
+  - Install the native messaging host:
+    ```bash
+    helpers/event_providers/now_playing/extension/install_bridge.sh --ext-id <EXTENSION_ID>
+    ```
+    This writes `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sketchybar.nowplaying.json` pointing to `~/.config/sketchybar/helpers/event_providers/now_playing/bin/now_playing` and whitelists your extension ID.
+  - Restart the browser (`chrome://restart` or `brave://restart`), then play/pause on `https://music.youtube.com` to validate.
+  - Screenshot showing the Extension ID:
+    
+    <img width="600" src="helpers/event_providers/now_playing/extension/screenshot.png">
+
+## `now_playing` Event Provider
+
+- What it is: a helper binary at `helpers/event_providers/now_playing/bin/now_playing` that bridges browser media playback (via Native Messaging) and Apple Music control (via AppleScript) to SketchyBar.
+- Why: display real-time track metadata from YouTube Music (Chrome/Brave) and control Apple Music playback directly from the bar.
+- How it works:
+  - **Native Messaging mode**: When invoked by the browser extension, it receives track metadata (title, artist, album, state, elapsed, duration) and triggers the SketchyBar event `media_nowplaying`.
+- **Standalone mode**: When run with an argument (`previous|next|toggle|playpause`), it first tries to control YouTube Music tabs in Chrome/Brave (injecting JS to click play/pause/next/prev), then falls back to controlling Apple Music via AppleScript.
+- Permissions:
+  - No special permissions required for Native Messaging.
+  - Apple Music control requires the Music app to be installed and accessible via AppleScript.
+- Troubleshooting:
+  - If the extension cannot connect, verify the native host manifest is installed correctly (see installation steps above).
+  - Check the extension's Service Worker console for connection errors.
+  - Ensure the binary is executable: `chmod +x ~/.config/sketchybar/helpers/event_providers/now_playing/bin/now_playing`.
 
 ## SketchyBar Location Helper
 

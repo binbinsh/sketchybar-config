@@ -29,7 +29,6 @@ local cal = sbar.add("item", {
     border_color = colors.black,
     border_width = 1
   },
-  click_script = "open -a 'Notion Calendar'"
 })
 
 -- Double border for calendar using a single item bracket
@@ -51,4 +50,13 @@ cal:subscribe({ "forced", "routine", "system_woke" }, function(env)
     icon = "􀧞",
     label = "周" .. weekday_cn .. " " .. os.date("%m月%d日 %H:%M")
   })
+end)
+
+cal:subscribe("mouse.clicked", function(env)
+  if env.BUTTON == "right" then
+    sbar.exec("open -a 'Notion Calendar'")
+    return
+  end
+  if env.BUTTON ~= "left" then return end
+  sbar.exec([[osascript -e 'tell application "System Events" to click menu bar item 1 of menu bar 1 of application process "ControlCenter"']])
 end)

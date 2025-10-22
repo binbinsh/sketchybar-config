@@ -27,7 +27,7 @@ local synergy = sbar.add("item", "widgets.synergy", {
   padding_left = settings.paddings,
   padding_right = settings.paddings,
   popup = { align = "center" },
-  updates = true,
+  updates = false,
 })
 
 popup.register(synergy)
