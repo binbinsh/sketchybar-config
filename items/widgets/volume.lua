@@ -109,11 +109,9 @@ local function volume_toggle_details(env)
 tell application "System Events"
   if not (exists process "SoundSource") then
     tell application "SoundSource" to launch
-    delay 0.4
   end if
   tell application process "SoundSource"
     click menu bar item 1 of menu bar 2
-    delay 0.08
     if (exists window 1) then
       set p to position of window 1
       set x to item 1 of p
