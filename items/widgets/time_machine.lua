@@ -190,13 +190,11 @@ local function populate_tm_details()
       if line and line ~= "" then table.insert(lines, line) end
     end
     if #lines == 0 then
-      recent_row1:set({ icon = { string = "Recent backups:", width = popup_width, align = "center" } })
       recent_row2:set({ label = { string = "", align = "center", width = popup_width } })
       recent_row3:set({ label = { string = "", align = "center", width = popup_width } })
       recent_row4:set({ label = { string = "", align = "center", width = popup_width } })
       return
     end
-    recent_row1:set({ icon = { string = "Recent backups:", width = popup_width, align = "center" } })
     recent_row2:set({ label = { string = lines[1] or "", align = "center", width = popup_width } })
     recent_row3:set({ label = { string = lines[2] or "", align = "center", width = popup_width } })
     recent_row4:set({ label = { string = lines[3] or "", align = "center", width = popup_width } })

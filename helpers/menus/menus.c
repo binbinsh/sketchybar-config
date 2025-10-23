@@ -78,7 +78,7 @@ void ax_print_menu_options(AXUIElementRef app) {
         AXUIElementRef item = CFArrayGetValueAtIndex(children_ref, i);
         CFTypeRef title = ax_get_title(item);
 
-        if (title) {
+        if (title && CFGetTypeID(title) == CFStringGetTypeID()) {
           // Ensure sufficient buffer for UTF-8 (up to 4 bytes per code unit + NUL)
           CFIndex length = CFStringGetLength((CFStringRef)title);
           CFIndex max_len = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8) + 1;
@@ -99,6 +99,8 @@ void ax_print_menu_options(AXUIElementRef app) {
             }
           }
           CFRelease(title);
+        } else {
+          printf("•\n");
         }
       }
     }
