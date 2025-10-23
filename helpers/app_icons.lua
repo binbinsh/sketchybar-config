@@ -318,4 +318,5 @@ return {
 	["Texifier"] = ":text:",
 	["DEVONthink"] = ":devonthink3:",
 	["YouTube Music"] = ":youtube_music:",
+	["Mimestream"] = ":mimestream:",
 }
