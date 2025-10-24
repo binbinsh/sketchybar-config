@@ -213,6 +213,7 @@ local weather = sbar.add("item", "widgets.weather", {
     string = "☁️",
     align = "left",
     color = colors.white,
+    y_offset = 2,
     font = {
       style = settings.font.style_map["Regular"],
       size = 14.0,
