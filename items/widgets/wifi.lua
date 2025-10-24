@@ -61,10 +61,7 @@ local wifi_down = sbar.add("item", "widgets.wifi2", {
 local wifi = sbar.add("item", "widgets.wifi.padding", {
   position = "right",
   label = { drawing = false },
-  popup = { align = "center", height = 30 },
 })
-
-popup.register(wifi)
 
 -- Background around the item
 local wifi_bracket = sbar.add("bracket", "widgets.wifi.bracket", {
@@ -72,11 +69,14 @@ local wifi_bracket = sbar.add("bracket", "widgets.wifi.bracket", {
   wifi_up.name,
   wifi_down.name
 }, {
-  background = { color = colors.bg1 }
+  background = { color = colors.bg1 },
+  popup = { align = "center", height = 30 }
 })
 
+popup.register(wifi_bracket)
+
 local ssid = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   icon = {
     font = {
       style = settings.font.style_map["Bold"]
@@ -101,7 +101,7 @@ local ssid = sbar.add("item", {
 })
 
 local hostname = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   icon = {
     align = "left",
     string = "Hostname:",
@@ -116,7 +116,7 @@ local hostname = sbar.add("item", {
 })
 
 local ip = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   icon = {
     align = "left",
     string = "IP:",
@@ -130,7 +130,7 @@ local ip = sbar.add("item", {
 })
 
 local mask = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   icon = {
     align = "left",
     string = "Subnet mask:",
@@ -144,7 +144,7 @@ local mask = sbar.add("item", {
 })
 
 local router = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   icon = {
     align = "left",
     string = "Router:",
@@ -159,7 +159,7 @@ local router = sbar.add("item", {
 
 -- Additional Wi‑Fi details (hidden by default; shown when values are available)
 local bssid_item = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   drawing = false,
   icon = {
     align = "left",
@@ -174,7 +174,7 @@ local bssid_item = sbar.add("item", {
 })
 
 local phy_item = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   drawing = false,
   icon = {
     align = "left",
@@ -189,7 +189,7 @@ local phy_item = sbar.add("item", {
 })
 
 local channel_item = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   drawing = false,
   icon = {
     align = "left",
@@ -204,7 +204,7 @@ local channel_item = sbar.add("item", {
 })
 
 local security_item = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   drawing = false,
   icon = {
     align = "left",
@@ -219,7 +219,7 @@ local security_item = sbar.add("item", {
 })
 
 local signal_item = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   drawing = false,
   icon = {
     align = "left",
@@ -234,7 +234,7 @@ local signal_item = sbar.add("item", {
 })
 
 local tx_item = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   drawing = false,
   icon = {
     align = "left",
@@ -249,7 +249,7 @@ local tx_item = sbar.add("item", {
 })
 
 local mcs_item = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   drawing = false,
   icon = {
     align = "left",
@@ -264,7 +264,7 @@ local mcs_item = sbar.add("item", {
 })
 
 local cc_item = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   drawing = false,
   icon = {
     align = "left",
@@ -279,7 +279,7 @@ local cc_item = sbar.add("item", {
 })
 
 local adapter_mac_item = sbar.add("item", {
-  position = "popup." .. wifi.name,
+  position = "popup." .. wifi_bracket.name,
   drawing = false,
   icon = {
     align = "left",
@@ -417,13 +417,13 @@ local function wifi_on_click(env)
     sbar.exec("open 'x-apple.systempreferences:com.apple.wifi-settings-extension' || open 'x-apple.systempreferences:com.apple.Network-Settings.extension'")
     return
   end
-  popup.toggle(wifi, populate_wifi_details)
+  popup.toggle(wifi_bracket, populate_wifi_details)
 end
 
 wifi_up:subscribe("mouse.clicked", wifi_on_click)
 wifi_down:subscribe("mouse.clicked", wifi_on_click)
 wifi:subscribe("mouse.clicked", wifi_on_click)
-popup.auto_hide(wifi)
+popup.auto_hide(wifi_bracket, wifi)
 
 local function copy_label_to_clipboard(env)
   local label = sbar.query(env.NAME).label.value

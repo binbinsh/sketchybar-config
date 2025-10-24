@@ -3,7 +3,7 @@ local icons = require("icons")
 local settings = require("settings")
 local popup = require("helpers.popup")
 
-local popup_width = 200
+local popup_width = 250
 
 local function trim_newline(s)
   return (s or ""):gsub("\r", ""):gsub("\n$", "")
@@ -19,7 +19,7 @@ end
 local function build_jxa_cmd(js_lines, argv)
   local parts = {}
   for _, line in ipairs(js_lines) do
-    parts[#parts+1] = "-e " .. string.format("%q", line)
+    parts[#parts + 1] = "-e " .. string.format("%q", line)
   end
   local cmd = "/usr/bin/osascript -l JavaScript " .. table.concat(parts, " ")
   if argv then cmd = cmd .. " -- " .. string.format("%q", argv) end
@@ -55,10 +55,17 @@ local tm = sbar.add("item", "widgets.time_machine", {
   padding_left = settings.paddings,
   padding_right = settings.paddings,
   updates = true,
-  popup = { align = "center" },
 })
 
-popup.register(tm)
+-- Create bracket for popup attachment
+local tm_bracket = sbar.add("bracket", "widgets.time_machine.bracket", {
+  tm.name,
+}, {
+  background = { drawing = false },
+  popup = { align = "center" }
+})
+
+popup.register(tm_bracket)
 
 tm:subscribe("mouse.entered", function(_)
   tm:set({ icon = { color = colors.blue } })
@@ -68,9 +75,11 @@ tm:subscribe("mouse.exited", function(_)
   tm:set({ icon = { color = colors.white } })
 end)
 
+
 -- Popup items
+-- Title row
 local title_item = sbar.add("item", {
-  position = "popup." .. tm.name,
+  position = "popup." .. tm_bracket.name,
   icon = {
     font = { style = settings.font.style_map["Bold"] },
     string = icons.time_machine,
@@ -79,77 +88,39 @@ local title_item = sbar.add("item", {
   align = "center",
   label = {
     font = { size = 15, style = settings.font.style_map["Bold"] },
-    string = "—",
+    string = "Time Machine",
   },
   background = { height = 2, color = colors.grey, y_offset = -15 },
 })
--- Single-column layout under title
--- Recent backups heading then up to 3 times
-local recent_row1 = sbar.add("item", {
-  position = "popup." .. tm.name,
-  icon = { align = "center", string = "Recent backups:", width = popup_width },
-  label = { drawing = false },
-})
-local recent_row2 = sbar.add("item", {
-  position = "popup." .. tm.name,
-  icon = { align = "left", string = "", width = 0 },
-  label = { align = "center", string = "", width = popup_width },
-})
-local recent_row3 = sbar.add("item", {
-  position = "popup." .. tm.name,
-  icon = { align = "left", string = "", width = 0 },
-  label = { align = "center", string = "", width = popup_width },
-})
-local recent_row4 = sbar.add("item", {
-  position = "popup." .. tm.name,
-  icon = { align = "left", string = "", width = 0 },
-  label = { align = "center", string = "", width = popup_width },
+
+-- Status row under title
+local status_row = sbar.add("item", {
+  position = "popup." .. tm_bracket.name,
+  width = popup_width,
+  icon = { align = "left", string = "Status:", width = popup_width / 2 },
+  label = { align = "right", string = "—", width = popup_width / 2 },
 })
 
--- Divider between info and actions
-local divider_item = sbar.add("item", {
-  position = "popup." .. tm.name,
+-- Latest single row
+local latest_row = sbar.add("item", {
+  position = "popup." .. tm_bracket.name,
   width = popup_width,
-  background = { height = 2, color = colors.grey, y_offset = -5 },
+  icon = { align = "left", string = "Latest:", width = popup_width / 2 },
+  label = { align = "right", string = "—", width = popup_width / 2 },
 })
 
--- Actions
-local start_btn = sbar.add("item", {
-  position = "popup." .. tm.name,
-  width = popup_width,
-  align = "center",
-  icon = { string = icons.refresh },
-  label = { string = "Start backup" },
-})
-
-local stop_btn = sbar.add("item", {
-  position = "popup." .. tm.name,
-  width = popup_width,
-  align = "center",
-  icon = { string = icons.media and icons.media.play_pause or "⏸" },
-  label = { string = "Stop backup" },
-})
-
-local open_dest_btn = sbar.add("item", {
-  position = "popup." .. tm.name,
-  width = popup_width,
-  align = "center",
-  icon = { string = (icons.link or icons.gear) },
-  label = { string = "Open destination" },
-})
-
-local open_tm_btn = sbar.add("item", {
-  position = "popup." .. tm.name,
-  width = popup_width,
-  align = "center",
-  icon = { string = icons.time_machine },
-  label = { string = "Open Time Machine" },
-})
+-- Actions stacked under latest
+local action_start = sbar.add("item",
+  { position = "popup." .. tm_bracket.name, width = popup_width, icon = { align = "left", string = "Start backup", width = popup_width }, label = { drawing = false } })
+local action_stop = sbar.add("item",
+  { position = "popup." .. tm_bracket.name, width = popup_width, icon = { align = "left", string = "Stop backup", width = popup_width }, label = { drawing = false } })
+local action_open_dest = sbar.add("item",
+  { position = "popup." .. tm_bracket.name, width = popup_width, icon = { align = "left", string = "Open destination", width = popup_width }, label = { drawing = false } })
+local action_open_tm = sbar.add("item",
+  { position = "popup." .. tm_bracket.name, width = popup_width, icon = { align = "left", string = "Open Time Machine", width = popup_width }, label = { drawing = false } })
 
 local function populate_tm_details()
-  title_item:set({ label = "—" })
-
-  -- Status (Idle/Running) shown in title
+  -- Update status
   local status_cmd = [[/bin/zsh -lc '
     out=$(tmutil status 2>/dev/null || true)
     if printf "%s" "$out" | grep -q "Running = 1"; then
@@ -161,73 +132,62 @@ local function populate_tm_details()
   exec(status_cmd, function(out)
     local status = trim_newline(out)
     if status == "" then status = "—" end
-    title_item:set({ label = status })
+    status_row:set({ label = { string = status } })
   end)
 
-  -- Recent backups (up to 3)
-  local recent_cmd = [[/bin/zsh -lc '
-    out=$(tmutil listbackups 2>&1); code=$?
+  -- Latest backup only (use tmutil latestbackup)
+  local latest_cmd = [[/bin/zsh -lc '
+    out=$(tmutil latestbackup 2>&1); code=$?
     if [ $code -ne 0 ] || printf "%s" "$out" | grep -qiE "not permitted|not authorized"; then
       echo "Full Disk Access required"
     else
-      ts=$(printf "%s\n" "$out" | grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}" | sort -ru | head -n3)
+      ts=$(printf "%s\n" "$out" | grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}" | tail -n1)
       if [ -n "$ts" ]; then
-        printf "%s\n" "$ts" | while IFS= read -r l; do
-          date_part=$(printf "%s" "$l" | cut -c1-10)
-          h=$(printf "%s" "$l" | cut -c12-13)
-          m=$(printf "%s" "$l" | cut -c14-15)
-          printf "%s %s:%s\n" "$date_part" "$h" "$m"
-        done
+        date_part=$(printf "%s" "$ts" | cut -c1-10)
+        h=$(printf "%s" "$ts" | cut -c12-13)
+        m=$(printf "%s" "$ts" | cut -c14-15)
+        printf "%s %s:%s\n" "$date_part" "$h" "$m"
       else
         echo "No backups found"
       fi
     fi
   ']]
-  exec(recent_cmd, function(result)
+  exec(latest_cmd, function(result)
     local text = trim_newline(result)
-    local lines = {}
-    for line in string.gmatch(text, "([^\n]+)") do
-      if line and line ~= "" then table.insert(lines, line) end
-    end
-    if #lines == 0 then
-      recent_row2:set({ label = { string = "", align = "center", width = popup_width } })
-      recent_row3:set({ label = { string = "", align = "center", width = popup_width } })
-      recent_row4:set({ label = { string = "", align = "center", width = popup_width } })
-      return
-    end
-    recent_row2:set({ label = { string = lines[1] or "", align = "center", width = popup_width } })
-    recent_row3:set({ label = { string = lines[2] or "", align = "center", width = popup_width } })
-    recent_row4:set({ label = { string = lines[3] or "", align = "center", width = popup_width } })
+    if text == "" then text = "—" end
+    latest_row:set({ label = { string = text } })
   end)
 end
 
--- Click handlers
-
-start_btn:subscribe("mouse.clicked", function(_)
+-- Click handlers for actions (stacked)
+action_start:subscribe("mouse.clicked", function(_)
   exec(jxa_admin_cmd("tmutil startbackup"), function(_)
     sbar.delay(0.5, function() populate_tm_details() end)
   end)
 end)
 
-stop_btn:subscribe("mouse.clicked", function(_)
+action_stop:subscribe("mouse.clicked", function(_)
   exec(jxa_admin_cmd("tmutil stopbackup"), function(_)
     sbar.delay(0.5, function() populate_tm_details() end)
   end)
 end)
 
-open_dest_btn:subscribe("mouse.clicked", function(_)
-  local cmd = [[/bin/zsh -lc 'tmutil destinationinfo 2>/dev/null | grep "^URL" | head -n1 | cut -d: -f2- | sed -E "s/^ +//; s/ +$//"']]
+action_open_dest:subscribe("mouse.clicked", function(_)
+  local cmd =
+  [[/bin/zsh -lc 'tmutil destinationinfo 2>/dev/null | grep "^URL" | head -n1 | cut -d: -f2- | sed -E "s/^ +//; s/ +$//"']]
   exec(cmd, function(url)
     url = (url or ""):gsub("\n$", "")
     if url ~= "" then
       exec("/bin/zsh -lc 'open \"" .. url .. "\"'", function(_) end)
     else
-      exec("/bin/zsh -lc 'open \"x-apple.systempreferences:com.apple.TimeMachine-Settings.extension\" || open -a \"Time Machine\"'", function(_) end)
+      exec(
+        "/bin/zsh -lc 'open \"x-apple.systempreferences:com.apple.TimeMachine-Settings.extension\" || open -a \"Time Machine\"'",
+        function(_) end)
     end
   end)
 end)
 
-open_tm_btn:subscribe("mouse.clicked", function(_)
+action_open_tm:subscribe("mouse.clicked", function(_)
   exec("/bin/zsh -lc 'open -a \"Time Machine\"'", function(_) end)
 end)
 
@@ -237,10 +197,7 @@ tm:subscribe("mouse.clicked", function(env)
     return
   end
   if env.BUTTON ~= "left" then return end
-  popup.toggle(tm, populate_tm_details)
+  popup.toggle(tm_bracket, populate_tm_details)
 end)
 
-popup.auto_hide(tm)
-
--- Mark wiring tasks complete: toggle already wired to item and auto hide enabled
-
+popup.auto_hide(tm_bracket, tm)

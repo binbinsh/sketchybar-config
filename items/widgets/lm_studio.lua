@@ -285,7 +285,7 @@ end)
 
 
 -- Auto-hide popup on context changes
-popup.auto_hide(lm_studio_bracket)
+popup.auto_hide(lm_studio_bracket, lm_studio)
 
 -- Refresh topbar label on context changes and custom trigger
 lm_studio:subscribe("system_woke", function(_)

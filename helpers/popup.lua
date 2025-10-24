@@ -39,16 +39,25 @@ function M.toggle(item, on_show)
   end
 end
 
-function M.auto_hide(item)
-  if not item then return end
-  item:subscribe("mouse.exited.global", function(_)
-    M.hide(item)
+function M.auto_hide(bracket, widget)
+  -- If only one argument provided, assume it's the bracket
+  if not widget then
+    widget = bracket
+  end
+  
+  if not bracket then return end
+  
+  -- Subscribe mouse.exited.global to the widget (following wifi pattern)
+  widget:subscribe("mouse.exited.global", function(_)
+    M.hide(bracket)
   end)
-  item:subscribe("front_app_switched", function(_)
-    M.hide(item)
+  
+  -- These can stay on the bracket
+  bracket:subscribe("front_app_switched", function(_)
+    M.hide(bracket)
   end)
-  item:subscribe("space_change", function(_)
-    M.hide(item)
+  bracket:subscribe("space_change", function(_)
+    M.hide(bracket)
   end)
 end
 

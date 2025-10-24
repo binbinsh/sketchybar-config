@@ -490,7 +490,7 @@ title_item:subscribe("mouse.clicked", function(_)
     refresh(true)
   end)
 end)
-weather_bracket:subscribe("mouse.exited.global", function(_) popup.hide(weather_bracket) end)
+popup.auto_hide(weather_bracket, weather)
 
 -- Periodic updates and initial paint (hourly)
 weather:set({ updates = true, update_freq = weather_cache_ttl })
