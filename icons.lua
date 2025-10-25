@@ -17,6 +17,7 @@ local icons = {
     time_machine = "􀐫",
     lock = "􀎡",
     translate = "🔍",
+    ubuntu = "ⓤ",
 
     switch = {
       on = "􁏮",
@@ -69,6 +70,7 @@ local icons = {
     time_machine = "", -- history
     lock = "",
     translate = "", -- fa-language
+    ubuntu = "",
 
     switch = {
       on = "󱨥",

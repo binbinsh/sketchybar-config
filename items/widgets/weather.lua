@@ -337,7 +337,7 @@ local function update_popup_contents()
   else
     title_text = coord_text ~= "" and coord_text or "Location"
   end
-  title_item:set({ label = title_text .. "  " .. icons.refresh })
+  title_item:set({ label = title_text .. " " .. icons.refresh })
   cond_item:set({ label = current_data.desc or "" })
   temp_item:set({ label = tostring(math.floor((current_data.temp or 0) + 0.5)) .. "°C" })
   feels_item:set({ label = tostring(math.floor((current_data.feels or 0) + 0.5)) .. "°C" })
@@ -484,7 +484,7 @@ title_item:subscribe("mouse.clicked", function(_)
   tz_item:set({ label = "—" })
   sunrise_item:set({ label = "—" })
   sunset_item:set({ label = "—" })
-  title_item:set({ label = (current_location_label or "—") .. "  " .. icons.refresh })
+  title_item:set({ label = (current_location_label or "—") .. " " .. icons.refresh })
   current_data = nil
   sbar.exec("/bin/zsh -lc 'rm -f " .. weather_cache .. " " .. location_cache .. "'", function()
     refresh(true)
