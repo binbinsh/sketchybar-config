@@ -58,6 +58,9 @@ hs.window.animationDuration = 0
 local TOP_PADDING = 32
 local wf = hs.window.filter.new():setCurrentSpace(true)
 
+-- Global variable to keep the event tap alive
+local doubleclickTap = nil
+
 -- Ensure windows don't cover the top bar by enforcing TOP_PADDING gap
 local function clampTop(win)
   if not win or not win:isStandard() or win:isFullScreen() then return end
@@ -84,44 +87,104 @@ wf:subscribe({
   clampTop(win)
 end, true)
 
--- Intercept apps' titlebar double-click to apply top-padding maximize
-do
-  local swallowNextUp = false
-  local tap = hs.eventtap.new({
-    hs.eventtap.event.types.leftMouseDown,
-    hs.eventtap.event.types.leftMouseUp,
-  }, function(ev)
-    local et = ev:getType()
-    if et == hs.eventtap.event.types.leftMouseDown then
-      local clickState = ev:getProperty(hs.eventtap.event.properties.mouseEventClickState)
-      if clickState == 2 then
-        local win = hs.window.frontmostWindow()
-        if not win then return false end
-        local pos = hs.mouse.absolutePosition()
-        local f = win:frame()
-        local titlebarHeight = 60
-        if pos.x >= f.x and pos.x <= f.x + f.w and pos.y >= f.y and pos.y <= f.y + titlebarHeight then
-          local full = win:screen():fullFrame()
-          win:setFrame({x = full.x, y = full.y + TOP_PADDING, w = full.w, h = full.h - TOP_PADDING}, 0)
-          swallowNextUp = true
-          return true
-        end
-      end
-    elseif et == hs.eventtap.event.types.leftMouseUp then
-      if swallowNextUp then
-        swallowNextUp = false
-        return true
-      end
-    end
-    return false
-  end)
-  tap:start()
-end
-
+-- Hotkey for manual maximize with padding
 hs.hotkey.bind({"alt", "shift"}, "M", function()
   local win = hs.window.focusedWindow()
   if not win then return end
   local full = win:screen():fullFrame()
   win:setFrame({x = full.x, y = full.y + TOP_PADDING, w = full.w, h = full.h - TOP_PADDING}, 0)
+  print("Alt+Shift+M: Window maximized with padding")
 end)
+
+-- Function to create/recreate the event tap
+local function createDoubleclickTap()
+  local lastClickTime = 0
+  local lastClickPos = {x = 0, y = 0}
+  
+  -- Stop existing tap if it exists
+  if doubleclickTap then
+    doubleclickTap:stop()
+    doubleclickTap = nil
+  end
+  
+  doubleclickTap = hs.eventtap.new({
+    hs.eventtap.event.types.leftMouseDown,
+  }, function(ev)
+    local clickState = ev:getProperty(hs.eventtap.event.properties.mouseEventClickState)
+    local pos = hs.mouse.absolutePosition()
+    local currentTime = hs.timer.secondsSinceEpoch()
+    
+    -- First, handle manual double-click detection
+    if clickState == 1 then
+      -- Single click
+      local timeDiff = currentTime - lastClickTime
+      local posDiff = math.sqrt((pos.x - lastClickPos.x)^2 + (pos.y - lastClickPos.y)^2)
+      
+      if timeDiff < 0.5 and posDiff < 5 then
+        -- This is a double-click
+        local win = hs.window.frontmostWindow()
+        if win then
+          local f = win:frame()
+          -- Check if click is in titlebar area (be generous with the area)
+          if pos.y >= f.y and pos.y <= f.y + 50 and 
+             pos.x >= f.x and pos.x <= f.x + f.w then
+            print("Manual double-click detected in titlebar")
+            -- Use a timer to ensure the key event is processed after the click
+            hs.timer.doAfter(0.05, function()
+              hs.eventtap.keyStroke({"alt", "shift"}, "M", 0)
+            end)
+            lastClickTime = 0 -- Reset to prevent triple-click
+            return true -- Block the event
+          end
+        end
+      end
+      
+      lastClickTime = currentTime
+      lastClickPos = pos
+    elseif clickState == 2 then
+      -- System detected double-click
+      local win = hs.window.frontmostWindow()
+      if win then
+        local f = win:frame()
+        -- Check if click is in titlebar area
+        if pos.y >= f.y and pos.y <= f.y + 50 and 
+           pos.x >= f.x and pos.x <= f.x + f.w then
+          print("System double-click detected in titlebar")
+          -- Use a timer to ensure the key event is processed
+          hs.timer.doAfter(0.05, function()
+            hs.eventtap.keyStroke({"alt", "shift"}, "M", 0)
+          end)
+          return true -- Block the event
+        end
+      end
+    end
+    
+    return false
+  end)
+  
+  doubleclickTap:start()
+  print("Hammerspoon: Event tap created/recreated")
+end
+
+-- Create the initial tap
+createDoubleclickTap()
+
+-- Monitor the tap and restart if needed
+tapMonitor = hs.timer.doEvery(30, function()
+  if not doubleclickTap or not doubleclickTap:isEnabled() then
+    print("Event tap was disabled, restarting...")
+    createDoubleclickTap()
+  end
+end)
+
+-- Also recreate tap when system wakes from sleep
+wakeWatcher = hs.caffeinate.watcher.new(function(eventType)
+  if eventType == hs.caffeinate.watcher.systemDidWake then
+    print("System woke from sleep, recreating event tap...")
+    hs.timer.doAfter(1, createDoubleclickTap)
+  end
+end)
+wakeWatcher:start()
+
+print("Hammerspoon: Titlebar double-click interception enabled with auto-recovery")
 EOF
