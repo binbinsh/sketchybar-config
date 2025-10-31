@@ -10,38 +10,29 @@ local lm_studio = sbar.add("item", "widgets.lm_studio", {
     font = "sketchybar-app-font:Regular:16.0",
     color = colors.white,
   },
-  label = {
-    drawing = true,
-    font = {
-      family = settings.font.numbers,
-      style = settings.font.style_map["Bold"],
-      size = 12.0,
-    },
-    string = "OFF",
-    padding_left = 4,
-  },
+  label = { drawing = false },
   background = { drawing = false },
+  padding_left = settings.paddings,
+  padding_right = settings.paddings,
   updates = true,
-  popup = { align = "center" },
 })
 
 
 local lm_studio_bracket = sbar.add("bracket", "widgets.lm_studio.bracket", {
   lm_studio.name,
 }, {
-  background = { color = colors.bg1 },
-  popup = { align = "center" },
+  background = { drawing = false },
+  popup = { align = "center" }
 })
 
 popup.register(lm_studio_bracket)
-
-sbar.add("item", { position = "right", width = settings.group_paddings })
 
 local popup_width = 250
 
 -- Pre-create popup children for the LM Studio item
 local max_popup_items = 12
 local popup_items = {}
+local actions = {}
 
 local popup_pos = "popup." .. lm_studio_bracket.name
 
@@ -65,11 +56,20 @@ for i = 1, max_popup_items, 1 do
   popup_items[i] = item
 end
 
+-- One-time click subscriptions for each popup row; action bound dynamically via `actions`
+for i = 1, max_popup_items, 1 do
+  popup_items[i]:subscribe("mouse.clicked", function(_)
+    local fn = actions[i]
+    if fn then fn() end
+  end)
+end
+
 -- Populate status and model list using lms CLI (LLMs only)
 local function populate_models()
   -- Hide all rows before repopulating
   for i = 1, max_popup_items, 1 do
     popup_items[i]:set({ drawing = false })
+    actions[i] = nil
   end
 
   local header_idx = 1
@@ -108,6 +108,7 @@ local function populate_models()
   local function set_kv(idx, key, value)
     popup_items[idx]:set({
       drawing = true,
+      width = popup_width,
       icon = {
         drawing = true,
         align = "left",
@@ -133,16 +134,19 @@ local function populate_models()
     local port = (status_out or ""):match("port:%s*(%d+)") or "-"
     set_kv(server_idx, "Server:", on and "ON" or "OFF")
     set_kv(port_idx, "Port:", port)
-    lm_studio:set({ label = { string = on and "ON" or "OFF" } })
 
     -- Toggle action row
     local toggle_label = on and "Stop server" or "Start server"
     local toggle_cmd = on and "${LMS} server stop" or "nohup ${LMS} server start >/dev/null 2>&1 &"
     popup_items[toggle_idx]:set({
       drawing = true,
+      width = popup_width,
       label = toggle_label,
-      click_script = "/bin/zsh -lc '\n" .. lms_prefix .. "sketchybar --set widgets.lm_studio.bracket popup.drawing=off; " .. toggle_cmd .. "; sketchybar --trigger lmstudio_force_refresh'",
     })
+    actions[toggle_idx] = function()
+      popup.hide(lm_studio_bracket)
+      sbar.exec("/bin/zsh -lc '" .. lms_prefix .. toggle_cmd .. "'")
+    end
   end)
 
   -- Loaded models memory + details from ps
@@ -226,6 +230,7 @@ local function populate_models()
         local base = e.name:gsub(".*/", "")
         popup_items[idx]:set({
           drawing = true,
+          width = popup_width,
           icon = {
             drawing = true,
             align = "left",
@@ -237,39 +242,42 @@ local function populate_models()
             string = e.loaded and "✓" or "",
             width = popup_width / 2,
           },
-          click_script = "/bin/zsh -lc '" .. lms_prefix
-            .. "sketchybar --set widgets.lm_studio.bracket popup.drawing=off; "
+        })
+        local row_index = idx
+        local model_name = e.name
+        local base_name = base
+        actions[row_index] = function()
+          popup.hide(lm_studio_bracket)
+          sbar.exec("/bin/zsh -lc '" .. lms_prefix
             .. 'nohup ${LMS} server start >/dev/null 2>&1 &; '
             .. '${LMS} unload --all; '
-            .. '${LMS} load "' .. e.name .. '" --identifier "' .. base .. '" -y; '
-            .. "sketchybar --trigger lmstudio_force_refresh'",
-        })
+            .. '${LMS} load "' .. model_name .. '" --identifier "' .. base_name .. '" -y' .. "'")
+        end
         idx = idx + 1
       end
 
       if idx == models_start_idx then
         popup_items[models_start_idx]:set({
           drawing = true,
+          width = popup_width,
           label = "Install lms CLI: ~/.lmstudio/bin/lms bootstrap",
-          click_script = "/bin/zsh -lc '" .. lms_prefix .. "sketchybar --set widgets.lm_studio.bracket popup.drawing=off; ${LMS} bootstrap || true'",
         })
+        actions[models_start_idx] = function()
+          popup.hide(lm_studio_bracket)
+          sbar.exec("/bin/zsh -lc '" .. lms_prefix .. "${LMS} bootstrap || true'")
+        end
       end
 
       popup_items[max_popup_items]:set({
         drawing = true,
+        width = popup_width,
         label = "Unload all models",
-        click_script = [[/bin/zsh -lc ']] .. lms_prefix .. [[sketchybar --set widgets.lm_studio.bracket popup.drawing=off; ${LMS} unload --all; sketchybar --trigger lmstudio_force_refresh']],
       })
+      actions[max_popup_items] = function()
+        popup.hide(lm_studio_bracket)
+        sbar.exec("/bin/zsh -lc '" .. lms_prefix .. "${LMS} unload --all'")
+      end
     end)
-  end)
-end
-
--- Update only the topbar ON/OFF label
-local function update_status_label()
-  local lms_prefix = [[LMS="$(command -v lms 2>/dev/null || { [ -x "$HOME/.lmstudio/bin/lms" ] && printf "%s" "$HOME/.lmstudio/bin/lms"; })"; ]]
-  sbar.exec([[ /bin/zsh -lc ']] .. lms_prefix .. [[${LMS} status 2>/dev/null' ]], function(status_out)
-    local on = (status_out or ""):match("Server:%s*ON") ~= nil
-    lm_studio:set({ label = { string = on and "ON" or "OFF" } })
   end)
 end
 
@@ -287,16 +295,13 @@ end)
 -- Auto-hide popup on context changes
 popup.auto_hide(lm_studio_bracket, lm_studio)
 
--- Refresh topbar label on context changes and custom trigger
-lm_studio:subscribe("system_woke", function(_)
-  update_status_label()
+-- Hover color change for the bar icon
+lm_studio:subscribe("mouse.entered", function(_)
+  lm_studio:set({ icon = { color = colors.blue } })
 end)
 
-lm_studio:subscribe("lmstudio_force_refresh", function(_)
-  update_status_label()
+lm_studio:subscribe("mouse.exited", function(_)
+  lm_studio:set({ icon = { color = colors.white } })
 end)
-
--- Initial label refresh
-sbar.delay(0.1, function() update_status_label() end)
 
 
