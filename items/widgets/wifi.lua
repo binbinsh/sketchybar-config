@@ -75,6 +75,11 @@ local wifi_bracket = sbar.add("bracket", "widgets.wifi.bracket", {
 
 popup.register(wifi_bracket)
 
+local function trim(s)
+  if not s then return s end
+  return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
 local ssid = sbar.add("item", {
   position = "popup." .. wifi_bracket.name,
   icon = {
@@ -333,6 +338,17 @@ local function populate_wifi_details()
   sbar.exec("ipconfig getifaddr en0", function(result)
     ip:set({ label = result })
   end)
+  -- Prefer parsing SSID and BSSID from `ipconfig getsummary en0` (requires: sudo ipconfig setverbose 1)
+  sbar.exec("ipconfig getsummary en0", function(summary)
+    local ss = summary and summary:match("\n%s*SSID%s*:%s*(.-)\n") or summary and summary:match("SSID%s*:%s*(.-)$")
+    local bs = summary and summary:match("\n%s*BSSID%s*:%s*([%x:]+)") or summary and summary:match("BSSID%s*:%s*([%x:]+)")
+    if ss and ss ~= "" then ssid:set({ label = trim(ss) }) end
+    if bs and bs ~= "" then
+      bssid_item:set({ drawing = true, label = trim(bs) })
+    else
+      bssid_item:set({ drawing = false })
+    end
+  end)
   -- Single system_profiler call to fetch current Wi‑Fi details
   sbar.exec("system_profiler SPAirPortDataType", function(sp)
     local function parse_sp_airport(output)
@@ -372,7 +388,6 @@ local function populate_wifi_details()
                 elseif key == "Signal / Noise" then r.signal_noise = value
                 elseif key == "Transmit Rate" then r.tx_rate = value
                 elseif key == "MCS Index" then r.mcs_index = value
-                elseif key == "BSSID" then r.bssid = value
                 end
               end
             end
@@ -383,7 +398,6 @@ local function populate_wifi_details()
     end
 
     local vals = parse_sp_airport(sp)
-    if vals.ssid and vals.ssid ~= "" then ssid:set({ label = vals.ssid }) end
 
     local function set_opt(item, value)
       if not item then return end
@@ -394,7 +408,6 @@ local function populate_wifi_details()
       end
     end
 
-    set_opt(bssid_item, vals.bssid)
     set_opt(phy_item, vals.phy_mode)
     set_opt(channel_item, vals.channel)
     set_opt(security_item, vals.security)
