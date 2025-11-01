@@ -36,7 +36,7 @@ local function shorten_gpu_name(name)
   return name
 end
 
-local popup_width = 300
+local popup_width = 250
 local left_col_w = math.floor(popup_width * 0.55)
 local right_col_w = popup_width - left_col_w
 
@@ -274,14 +274,14 @@ local function apply_state(st)
     home_item:set({ label = "—" })
   end
 
-  -- NVMe line: show all temps (sorted by id), no ids
+  -- NVMe line: show all temps, compact (e.g., 30/31/28°C)
   if st.nvmes and #st.nvmes > 0 then
     table.sort(st.nvmes, function(a, b) return (a.id or 0) < (b.id or 0) end)
-    local parts = {}
+    local temps = {}
     for _, entry in ipairs(st.nvmes) do
-      parts[#parts+1] = string.format("%d°C", math.floor(entry.temp or 0))
+      temps[#temps+1] = tostring(math.floor(entry.temp or 0))
     end
-    nvme_item:set({ label = table.concat(parts, ", ") })
+    nvme_item:set({ label = table.concat(temps, "·") .. "°C" })
   else
     nvme_item:set({ label = "—" })
   end
