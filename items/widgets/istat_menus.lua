@@ -71,6 +71,7 @@ local function add_istat_alias(alias_target)
   sbar.exec(add_cmd, function()
     alias_created = true
     ensure_bracket_padding()
+    sbar.exec([[ /bin/zsh -lc 'sketchybar --query widgets.volume.bracket >/dev/null 2>&1 && sketchybar --reorder istat_menus widgets.volume.bracket' ]])
   end)
 end
 
