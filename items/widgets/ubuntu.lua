@@ -112,6 +112,17 @@ local nvme_item = sbar.add("item", {
   label = { align = "right", string = "—", width = right_col_w },
 })
 
+-- NVMe rows (per device, up to 8)
+local nvme_rows = {}
+for i = 1, 8 do
+  nvme_rows[i] = sbar.add("item", {
+    position = "popup." .. bracket.name,
+    icon = { align = "left", string = "", width = left_col_w },
+    label = { align = "right", string = "", width = right_col_w },
+    drawing = false,
+  })
+end
+
 -- We'll reuse a fixed pool of rows for GPUs (up to 6)
 local gpu_rows = {}
 for i = 1, 6 do
@@ -220,22 +231,20 @@ local function apply_state(st)
     if i <= #st.gpus then
       local g = st.gpus[i]
       local name = shorten_gpu_name(g.name)
+      local function gpu_label()
+        local used_gb = math.floor((g.mem_used_mib or 0)/1024 + 0.5)
+        return string.format("%d%%, %d°C, %dG", math.floor(g.util or 0), math.floor(g.temp or 0), used_gb)
+      end
       if g.name and g.name ~= "" then
         row:set({
           icon = { string = name .. ":" },
-          label = (function()
-            local used_gb = (g.mem_used_mib or 0)/1024
-            return string.format("%d%%, %d°C, %.1f GB", math.floor(g.util or 0), math.floor(g.temp or 0), used_gb)
-          end)(),
+          label = gpu_label(),
           drawing = true,
         })
       else
         row:set({
           icon = { string = "GPU:" },
-          label = (function()
-            local used_gb = (g.mem_used_mib or 0)/1024
-            return string.format("%d%%, %d°C, %.1f GB", math.floor(g.util or 0), math.floor(g.temp or 0), used_gb)
-          end)(),
+          label = gpu_label(),
           drawing = true,
         })
       end
@@ -254,11 +263,11 @@ local function apply_state(st)
     cpu_item:set({ label = "—" })
   end
 
-  -- Memory line (GB, 1 decimal, spaces around slash)
+  -- Memory line: show used/total in integer GB
   if st.mem_used and st.mem_total then
-    local used_gb = (st.mem_used or 0)/1024
-    local total_gb = (st.mem_total or 0)/1024
-    mem_item:set({ label = string.format("%.1f / %.1f GB", used_gb, total_gb) })
+    local used_gb = math.floor((st.mem_used or 0)/1024 + 0.5)
+    local total_gb = math.floor((st.mem_total or 0)/1024 + 0.5)
+    mem_item:set({ label = string.format("%dG / %dG", used_gb, total_gb) })
   else
     mem_item:set({ label = "—" })
   end
@@ -274,21 +283,38 @@ local function apply_state(st)
     home_item:set({ label = "—" })
   end
 
-  -- NVMe line: show all temps, compact (e.g., 30/31/28°C)
+  -- NVMe line: show all temps (sorted by id), no ids
+  -- Switch to per-device rows for NVMe to keep things short
+  nvme_item:set({ drawing = false })
   if st.nvmes and #st.nvmes > 0 then
-    table.sort(st.nvmes, function(a, b) return (a.id or 0) < (b.id or 0) end)
-    local temps = {}
-    for _, entry in ipairs(st.nvmes) do
-      temps[#temps+1] = tostring(math.floor(entry.temp or 0))
+    -- Prefer stable sort by provided order; if only ids exist, sort by id
+    local has_name = st.nvmes[1].name ~= nil
+    if not has_name then
+      table.sort(st.nvmes, function(a, b) return (a.id or 0) < (b.id or 0) end)
     end
-    nvme_item:set({ label = table.concat(temps, "·") .. "°C" })
+    for i = 1, #nvme_rows do
+      local row = nvme_rows[i]
+      if i <= #st.nvmes then
+        local n = st.nvmes[i]
+        local name = n.name or (n.id and ("NVMe" .. tostring(n.id))) or ("NVMe" .. tostring(i))
+        row:set({
+          icon = { string = name .. ":" },
+          label = string.format("%d°C", math.floor(n.temp or 0)),
+          drawing = true,
+        })
+      else
+        row:set({ icon = { string = "" }, label = "", drawing = false })
+      end
+    end
   else
-    nvme_item:set({ label = "—" })
+    for i = 1, #nvme_rows do
+      nvme_rows[i]:set({ icon = { string = "" }, label = "", drawing = false })
+    end
   end
 
 end
 
--- Command: use nounits CSV for GPU (name, util, temp, mem used/total), then free/top/sensors
+-- Command: GPU via nvidia-smi, system via top/sensors, /home via df
 local remote_cmd = [[nvidia-smi --query-gpu=name,utilization.gpu,temperature.gpu,memory.used,memory.total --format=csv,noheader,nounits && top -bn1 | head -5 && sensors && df -h /home | tail -1]]
 
 local function sh_quote_single(s)
