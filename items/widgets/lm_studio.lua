@@ -36,6 +36,48 @@ local actions = {}
 
 local popup_pos = "popup." .. lm_studio_bracket.name
 
+local function trim(s)
+  return (s or ""):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function normalized_variants(value)
+  local variants = {}
+  local seen = {}
+
+  local function add_variant(str)
+    if not str or str == "" then return end
+    if seen[str] then return end
+    seen[str] = true
+    table.insert(variants, str)
+  end
+
+  local cleaned = trim(value)
+  if cleaned == "" then return variants end
+
+  add_variant(cleaned:lower())
+
+  local base = cleaned:match("([^/\\]+)$") or cleaned
+  add_variant(base:lower())
+
+  local no_ext = base:gsub("%.[^%.]+$", "")
+  add_variant(no_ext:lower())
+
+  return variants
+end
+
+local function mark_loaded_variant(set, value)
+  for _, key in ipairs(normalized_variants(value)) do
+    set[key] = true
+  end
+end
+
+local function is_loaded_name(set, value)
+  for _, key in ipairs(normalized_variants(value)) do
+    if set[key] then return true end
+  end
+  return false
+end
+
 for i = 1, max_popup_items, 1 do
   local item = sbar.add("item", "widgets.lm_studio.menu." .. i, {
     position = popup_pos,
@@ -181,9 +223,8 @@ local function populate_models()
           first_context = (context ~= nil and context ~= "" and context) or nil
           first_ttl = (ttl ~= nil and ttl ~= "" and ttl) or nil
         end
-        if model and model ~= "" then
-          loaded_set[model] = true
-        end
+        if model and model ~= "" then mark_loaded_variant(loaded_set, model) end
+        if ident and ident ~= "" then mark_loaded_variant(loaded_set, ident) end
       end
     end
 
@@ -213,7 +254,7 @@ local function populate_models()
         if not token or token == "" then return nil end
         local is_embedding = token:lower():find("embed", 1, true) ~= nil
         if is_embedding then return nil end
-        local loaded = loaded_set[token] or false
+        local loaded = is_loaded_name(loaded_set, token)
         return { name = token, loaded = loaded }
       end
 
@@ -303,5 +344,4 @@ end)
 lm_studio:subscribe("mouse.exited", function(_)
   lm_studio:set({ icon = { color = colors.white } })
 end)
-
 
