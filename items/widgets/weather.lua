@@ -256,7 +256,7 @@ local title_item = sbar.add("item", {
   width = popup_width,
   align = "center",
   label = {
-    font = { size = 15, style = settings.font.style_map["Bold"] },
+    font = { family = settings.font.icons, size = 15, style = settings.font.style_map["Bold"] },
     string = "—",
   },
   background = { height = 2, color = colors.grey, y_offset = -15 },

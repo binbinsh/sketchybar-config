@@ -47,7 +47,7 @@ local ubuntu = sbar.add("item", "widgets.ubuntu", {
     string = icons.ubuntu or icons.linux,
     color = colors.white,
     font = {
-      family = settings.font.text,
+      family = settings.font.icons,
       style = settings.font.style_map["Regular"],
       size = 16.0,
     },
@@ -73,7 +73,14 @@ local title_item = sbar.add("item", {
   width = popup_width,
   align = "center",
   icon = { string = icons.ubuntu or icons.linux, color = colors.white, font = { style = settings.font.style_map["Bold"] } },
-  label = { string = short_host(ssh_target) .. " " .. icons.refresh, font = { size = 15, style = settings.font.style_map["Bold"] } },
+  label = {
+    string = short_host(ssh_target) .. " " .. icons.refresh,
+    font = {
+      family = settings.font.icons,
+      size = 15,
+      style = settings.font.style_map["Bold"],
+    },
+  },
   background = { height = 2, color = colors.grey, y_offset = -15 },
 })
 
@@ -365,5 +372,3 @@ ubuntu:subscribe("routine", function(_) refresh() end)
 
 -- Initial paint
 refresh()
-
-

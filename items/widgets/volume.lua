@@ -31,6 +31,7 @@ local volume_icon = sbar.add("item", "widgets.volume2", {
     width = 25,
     align = "left",
     font = {
+      family = settings.font.icons,
       style = settings.font.style_map["Regular"],
       size = 14.0,
     },
@@ -136,4 +137,3 @@ volume_icon:subscribe("mouse.scrolled", volume_scroll)
 volume_percent:subscribe("mouse.clicked", volume_toggle_details)
 volume_percent:subscribe("mouse.exited.global", volume_collapse_details)
 volume_percent:subscribe("mouse.scrolled", volume_scroll)
-

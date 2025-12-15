@@ -16,7 +16,7 @@ local wifi_up = sbar.add("item", "widgets.wifi1", {
   icon = {
     padding_right = 0,
     font = {
-      family = settings.font.text,
+      family = settings.font.icons,
       style = settings.font.style_map["Bold"],
       size = 9.0,
     },
@@ -40,7 +40,7 @@ local wifi_down = sbar.add("item", "widgets.wifi2", {
   icon = {
     padding_right = 0,
     font = {
-      family = settings.font.text,
+      family = settings.font.icons,
       style = settings.font.style_map["Bold"],
       size = 9.0,
     },

@@ -9,6 +9,21 @@ local function trim_newline(s)
   return (s or ""):gsub("\r", ""):gsub("\n$", "")
 end
 
+local function extract_tm_timestamp(s)
+  local last = nil
+  for ts in tostring(s or ""):gmatch("(%d%d%d%d%-%d%d%-%d%d%-%d%d%d%d%d%d)") do
+    last = ts
+  end
+  return last
+end
+
+local function format_tm_timestamp(ts)
+  if not ts or ts == "" then return nil end
+  local y, mo, d, h, m = ts:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)%-(%d%d)(%d%d)%d%d$")
+  if not y then return nil end
+  return string.format("%s-%s-%s %s:%s", y, mo, d, h, m)
+end
+
 local function exec(cmd, cb)
   sbar.exec(cmd, cb)
 end
@@ -44,7 +59,7 @@ local tm = sbar.add("item", "widgets.time_machine", {
   icon = {
     string = icons.time_machine,
     font = {
-      family = settings.font.text,
+      family = settings.font.icons,
       style = settings.font.style_map["Regular"],
       size = 16.0,
     },
@@ -135,27 +150,55 @@ local function populate_tm_details()
     status_row:set({ label = { string = status } })
   end)
 
-  -- Latest backup only (use tmutil latestbackup)
-  local latest_cmd = [[/bin/zsh -lc '
-    out=$(tmutil latestbackup 2>&1); code=$?
-    if [ $code -ne 0 ] || printf "%s" "$out" | grep -qiE "not permitted|not authorized"; then
-      echo "Full Disk Access required"
-    else
-      ts=$(printf "%s\n" "$out" | grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}" | tail -n1)
-      if [ -n "$ts" ]; then
-        date_part=$(printf "%s" "$ts" | cut -c1-10)
-        h=$(printf "%s" "$ts" | cut -c12-13)
-        m=$(printf "%s" "$ts" | cut -c14-15)
-        printf "%s %s:%s\n" "$date_part" "$h" "$m"
-      else
-        echo "No backups found"
-      fi
-    fi
-  ']]
-  exec(latest_cmd, function(result)
-    local text = trim_newline(result)
+  local function set_latest(text)
+    text = trim_newline(text)
     if text == "" then text = "—" end
     latest_row:set({ label = { string = text } })
+  end
+
+  exec("/usr/bin/tmutil latestbackup 2>&1", function(out, exit_code)
+    local formatted = nil
+    if tonumber(exit_code) == 0 then
+      formatted = format_tm_timestamp(extract_tm_timestamp(out))
+      if formatted then
+        set_latest(formatted)
+      else
+        set_latest("No backups found")
+      end
+      return
+    end
+
+    local err = tostring(out or "")
+    exec("/usr/bin/defaults read /Library/Preferences/com.apple.TimeMachine LastBackupActivity 2>/dev/null", function(fallback, defaults_code)
+      if tonumber(defaults_code) == 0 then
+        formatted = format_tm_timestamp(extract_tm_timestamp(fallback))
+      end
+      if formatted then
+        set_latest(formatted)
+        return
+      end
+
+      local err_lc = err:lower()
+      if err_lc:find("full disk access", 1, true)
+          or err_lc:find("not permitted", 1, true)
+          or err_lc:find("not authorized", 1, true)
+          or err_lc:find("operation not permitted", 1, true) then
+        set_latest("Full Disk Access required")
+        return
+      end
+
+      if err_lc:find("no backups", 1, true)
+          or err_lc:find("no destination", 1, true)
+          or err_lc:find("no destinations", 1, true)
+          or err_lc:find("not configured", 1, true) then
+        set_latest("No backups found")
+        return
+      end
+
+      local first_line = err:match("([^\r\n]+)") or ""
+      first_line = first_line:gsub("^%s+", ""):gsub("%s+$", "")
+      set_latest(first_line ~= "" and first_line or "—")
+    end)
   end)
 end
 

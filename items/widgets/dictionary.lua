@@ -8,7 +8,7 @@ local dict = sbar.add("item", "widgets.dictionary", {
   icon = {
     string = icons.translate,
     font = {
-      family = settings.font.text,
+      family = settings.font.icons,
       style = settings.font.style_map["Regular"],
       size = 16.0,
     },
@@ -36,5 +36,4 @@ dict:subscribe("mouse.clicked", function(env)
   end
   sbar.exec("open 'raycast://extensions/gebeto/translate/instant-translate-view'")
 end)
-
 

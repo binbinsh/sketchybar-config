@@ -6,8 +6,8 @@ sbar.default({
   updates = "when_shown",
   icon = {
     font = {
-      family = settings.font.text,
-      style = settings.font.style_map["Bold"],
+      family = settings.font.icons,
+      style = settings.font.style_map["Regular"],
       size = 14.0
     },
     color = colors.white,
@@ -18,7 +18,7 @@ sbar.default({
   label = {
     font = {
       family = settings.font.text,
-      style = settings.font.style_map["Semibold"],
+      style = settings.font.style_map["Regular"],
       size = 13.0
     },
     color = colors.white,

@@ -7,7 +7,7 @@ local lock = sbar.add("item", "lock", {
   icon = {
     string = icons.lock,
     font = {
-      family = settings.font.text,
+      family = settings.font.icons,
       style = settings.font.style_map["Regular"],
       size = 16.0,
     },
@@ -31,5 +31,4 @@ end)
 lock:subscribe("mouse.clicked", function(env)
   sbar.exec([[osascript -e 'tell application "System Events" to keystroke "q" using {command down, control down}']], function() end)
 end)
-
 

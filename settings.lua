@@ -2,17 +2,15 @@ return {
   paddings = 3,
   group_paddings = 5,
 
-  icons = "NerdFont", -- availables: NerdFont, sf-symbols
+  icons = "NerdFont", -- available: NerdFont, sf-symbols
 
-  -- This is a font configuration for SF Pro and SF Mono (installed manually)
-  font = require("helpers.default_font"),
-
-  -- Alternatively, this is a font config for JetBrainsMono Nerd Font
+  -- Font configuration (JetBrains Mono Light)
   font = {
-    text = "JetBrainsMono Nerd Font", -- Used for text
-    numbers = "JetBrainsMono Nerd Font", -- Used for numbers
+    text = "JetBrains Mono", -- Used for text
+    numbers = "JetBrains Mono", -- Used for numbers
+    icons = "JetBrainsMono Nerd Font", -- Used for icons (NerdFont glyphs)
     style_map = {
-      ["Regular"] = "Regular",
+      ["Regular"] = "Light",
       ["Semibold"] = "Medium",
       ["Bold"] = "SemiBold",
       ["Heavy"] = "Bold",

@@ -55,8 +55,8 @@ Quick reference for the app integrations and interactive widgets in this directo
 
 ## Time Machine (`time_machine.lua`)
 
-- Minimal widget with a popup listing the last 1-3 backups; left-click toggles the popup; right-click opens the Time Machine app.
-- Uses `tmutil` (bundled with macOS) to read backup timestamps.
+- Minimal widget with a popup showing `tmutil status`, latest backup timestamp, and actions (start/stop backup, open destination, open Time Machine); right-click opens Time Machine settings.
+- `tmutil latestbackup` may require Full Disk Access for the running `sketchybar` binary; if it's blocked, the widget falls back to `LastBackupActivity` from `/Library/Preferences/com.apple.TimeMachine.plist` (restart SketchyBar after changing privacy permissions).
 
 ## Synergy (`synergy.lua`)
 

@@ -7,7 +7,7 @@ local clipboard = sbar.add("item", "widgets.clipboard", {
   icon = {
     string = icons.clipboard,
     font = {
-      family = settings.font.text,
+      family = settings.font.icons,
       style = settings.font.style_map["Regular"],
       size = 16.0,
     },
@@ -38,5 +38,4 @@ clipboard:subscribe("mouse.clicked", function(env)
     clipboard:set({ icon = { color = colors.white } })
   end)
 end)
-
 
