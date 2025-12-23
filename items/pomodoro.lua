@@ -23,6 +23,7 @@ local pomodoro = sbar.add("item", "pomodoro", {
     color = colors.red,
     padding_left = settings.paddings,
     padding_right = 4,
+    y_offset = 1,
   },
   label = {
     string = "25:00 1/4",
