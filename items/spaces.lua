@@ -27,7 +27,6 @@ for i = 10, 1, -1 do
       color = colors.grey,
       highlight_color = colors.white,
       font = "sketchybar-app-font:Regular:16.0",
-      y_offset = -1,
     },
     padding_right = 1,
     padding_left = 1,

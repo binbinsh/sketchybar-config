@@ -13,6 +13,8 @@ local focus_completed = 0
 local remaining = durations[phase]
 local running = false
 local last_tick = os.time()
+local state_path = os.getenv("HOME") .. "/.config/sketchybar/states/pomodoro_state"
+local last_saved_at = 0
 
 local pomodoro = sbar.add("item", "pomodoro", {
   position = "right",
@@ -45,6 +47,65 @@ sbar.add("item", "pomodoro.padding", {
   position = "right",
   width = settings.group_paddings,
 })
+
+local function ensure_state_dir()
+  local dir = state_path:match("(.+)/[^/]+$")
+  if dir then
+    os.execute('mkdir -p "' .. dir .. '"')
+  end
+end
+
+local function save_state()
+  ensure_state_dir()
+  local file = io.open(state_path, "w")
+  if not file then return end
+  file:write("phase=", phase, "\n")
+  file:write("focus_completed=", tostring(focus_completed), "\n")
+  file:write("remaining=", tostring(remaining), "\n")
+  file:write("running=", running and "true" or "false", "\n")
+  file:close()
+end
+
+local function save_state_throttled(force)
+  local now = os.time()
+  if force or (now - last_saved_at) >= 60 then
+    save_state()
+    last_saved_at = now
+  end
+end
+
+local function load_state()
+  local file = io.open(state_path, "r")
+  if not file then return end
+
+  local data = {}
+  for line in file:lines() do
+    local key, value = line:match("^(%w+)%s*=%s*(.+)$")
+    if key and value then
+      data[key] = value
+    end
+  end
+  file:close()
+
+  if data.phase and durations[data.phase] then
+    phase = data.phase
+  end
+
+  local loaded_focus = tonumber(data.focus_completed)
+  if loaded_focus then
+    focus_completed = loaded_focus
+  end
+
+  local loaded_remaining = tonumber(data.remaining)
+  if loaded_remaining then
+    remaining = math.max(loaded_remaining, 0)
+  else
+    remaining = durations[phase]
+  end
+
+  running = data.running == "true"
+  last_tick = os.time()
+end
 
 local function format_time(seconds)
   local safe_seconds = math.max(seconds, 0)
@@ -90,6 +151,7 @@ local function update_display()
     icon = { color = tint },
     label = { string = format_time(remaining) .. " " .. progress_text(), color = tint },
   })
+  save_state_throttled(false)
 end
 
 local function start_phase(next_phase)
@@ -99,6 +161,7 @@ local function start_phase(next_phase)
   running = true
 
   update_display()
+  save_state_throttled(true)
 end
 
 local function advance_phase()
@@ -122,12 +185,14 @@ local function toggle_running()
     last_tick = os.time()
   end
   update_display()
+  save_state_throttled(true)
 end
 
 local function reset_phase()
   remaining = durations[phase]
   last_tick = os.time()
   update_display()
+  save_state_throttled(true)
 end
 
 pomodoro:subscribe("mouse.clicked", function(env)
@@ -153,6 +218,10 @@ pomodoro:subscribe("routine", function()
     end
   end
   update_display()
+  if running then
+    save_state_throttled(false)
+  end
 end)
 
+load_state()
 update_display()

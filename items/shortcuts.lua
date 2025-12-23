@@ -716,16 +716,19 @@ end)
 
 local ubuntu_popup = make_popup("ubuntu", "Ubuntu", "Remote metrics")
 
-local target_path = os.getenv("HOME") .. "/.config/sketchybar/remote_host.json"
+local target_path = os.getenv("HOME") .. "/.config/sketchybar/states/remote_host"
 local ubuntu_enabled = false
 local ssh_target = ""
 
-local function json_escape(value)
+local function applescript_escape(value)
   return tostring(value):gsub("\\", "\\\\"):gsub("\"", "\\\"")
 end
 
-local function applescript_escape(value)
-  return tostring(value):gsub("\\", "\\\\"):gsub("\"", "\\\"")
+local function ensure_target_dir()
+  local dir = target_path:match("(.+)/[^/]+$")
+  if dir then
+    os.execute('mkdir -p "' .. dir .. '"')
+  end
 end
 
 local function read_ubuntu_host()
@@ -733,15 +736,14 @@ local function read_ubuntu_host()
   if not f then return "" end
   local raw = f:read("*a") or ""
   f:close()
-  local host = raw:match("\"host\"%s*:%s*\"(.-)\"") or ""
-  host = host:gsub("\\\"", "\""):gsub("\\\\", "\\")
-  return host:gsub("%s+$", ""):gsub("^%s+", "")
+  return raw:gsub("%s+$", ""):gsub("^%s+", "")
 end
 
 local function write_ubuntu_host(host)
+  ensure_target_dir()
   local f = io.open(target_path, "w")
   if not f then return false end
-  f:write("{\"host\":\"" .. json_escape(host) .. "\"}\n")
+  f:write(tostring(host) .. "\n")
   f:close()
   return true
 end
