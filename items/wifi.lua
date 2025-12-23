@@ -69,7 +69,11 @@ local wifi_bracket = sbar.add("bracket", "widgets.wifi.bracket", {
   wifi_up.name,
   wifi_down.name
 }, {
-  background = { color = colors.bg1 },
+  background = {
+    color = colors.with_alpha(colors.bg1, 0.2),
+    border_color = colors.with_alpha(colors.bg2, 0.2),
+    border_width = 2,
+  },
 })
 
 local wifi_popup = center_popup.create("wifi.popup", {

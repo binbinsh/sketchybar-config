@@ -32,12 +32,12 @@ for i = 10, 1, -1 do
     padding_right = 1,
     padding_left = 1,
     background = {
-      color = colors.bg1,
+      color = colors.with_alpha(colors.bg1, 0.2),
       border_width = 1,
-      height = 26,
-      border_color = colors.black,
+      height = 28,
+      border_color = colors.with_alpha(colors.bg2, 0.2),
     },
-    popup = { background = { border_width = 5, border_color = colors.black } }
+    popup = { background = { border_width = 5, border_color = colors.with_alpha(colors.bg2, 0.2) } }
   })
 
   spaces[i] = space
@@ -46,8 +46,8 @@ for i = 10, 1, -1 do
   local space_bracket = sbar.add("bracket", { space.name }, {
     position = "right",
     background = {
-      color = colors.transparent,
-      border_color = colors.bg2,
+      color = colors.with_alpha(colors.bg1, 0.2),
+      border_color = colors.with_alpha(colors.bg2, 0.2),
       height = 28,
       border_width = 2
     }
@@ -67,13 +67,13 @@ for i = 10, 1, -1 do
     space:set({
       icon = { highlight = selected, },
       label = { highlight = selected, string = selected and (space_icons[i] or "") or "" },
-      background = { border_color = selected and colors.black or colors.bg2 }
+      background = { border_color = colors.with_alpha(colors.bg2, 0.2) }
     })
     if selected then
       active_space = i
     end
     space_bracket:set({
-      background = { border_color = selected and colors.grey or colors.bg2 }
+      background = { border_color = colors.with_alpha(colors.bg2, 0.2) }
     })
   end)
 

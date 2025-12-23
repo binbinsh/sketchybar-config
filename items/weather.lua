@@ -234,7 +234,11 @@ local weather = sbar.add("item", "widgets.weather", {
 local weather_bracket = sbar.add("bracket", "widgets.weather.bracket", {
   weather.name,
 }, {
-  background = { color = colors.bg1 },
+  background = {
+    color = colors.with_alpha(colors.bg1, 0.2),
+    border_color = colors.with_alpha(colors.bg2, 0.2),
+    border_width = 2,
+  },
 })
 
 local weather_popup = center_popup.create("weather.popup", {

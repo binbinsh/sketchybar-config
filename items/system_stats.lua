@@ -107,7 +107,11 @@ sbar.add("bracket", "widgets.sys.bracket", {
   gpu.name,
   mem.name,
 }, {
-  background = { color = colors.bg1 }
+  background = {
+    color = colors.with_alpha(colors.bg1, 0.2),
+    border_color = colors.with_alpha(colors.bg2, 0.2),
+    border_width = 2,
+  }
 })
 
 sbar.add("item", "widgets.sys.padding", {

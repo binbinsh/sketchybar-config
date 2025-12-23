@@ -32,8 +32,8 @@ end
 
 sbar.add("bracket", { '/menu\\..*/' }, {
   background = {
-    color = colors.bg1,
-    border_color = colors.bg2,
+    color = colors.with_alpha(colors.bg1, 0.7),
+    border_color = colors.with_alpha(colors.bg2, 0.7),
     border_width = 2,
   }
 })

@@ -34,7 +34,11 @@ local pomodoro = sbar.add("item", "pomodoro", {
 })
 
 sbar.add("bracket", "pomodoro.bracket", { pomodoro.name }, {
-  background = { color = colors.bg1 },
+  background = {
+    color = colors.with_alpha(colors.bg1, 0.2),
+    border_color = colors.with_alpha(colors.bg2, 0.2),
+    border_width = 2,
+  },
 })
 
 sbar.add("item", "pomodoro.padding", {
