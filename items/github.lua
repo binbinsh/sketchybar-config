@@ -453,12 +453,7 @@ github:subscribe("mouse.exited", function(_)
 end)
 
 github:subscribe("mouse.clicked", function(env)
-  if env.BUTTON == "right" then
-    clear_new_issues()
-    sbar.exec("/bin/zsh -lc 'open https://github.com/issues'")
-    return
-  end
-
+  if env.BUTTON ~= "left" then return end
   if github_popup.is_showing() then
     github_popup.hide()
   else

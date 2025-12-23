@@ -102,11 +102,7 @@ local function volume_collapse_details()
 end
 
 local function volume_toggle_details(env)
-  if env.BUTTON == "right" then
-    sbar.exec("open /System/Library/PreferencePanes/Sound.prefpane")
-    return
-  end
-
+  if env.BUTTON ~= "left" then return end
   -- Open SoundSource menubar popover similar to backup script
   sbar.exec([[osascript <<'APPLESCRIPT' >/dev/null 2>&1
 tell application "System Events"

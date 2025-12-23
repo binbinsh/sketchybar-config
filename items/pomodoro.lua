@@ -66,6 +66,12 @@ local function phase_color()
   return colors.blue
 end
 
+local function phase_label(target)
+  if target == "focus" then return "Focus" end
+  if target == "short" then return "Short break" end
+  return "Long break"
+end
+
 local function notify(message)
   local cmd = string.format(
     [[osascript -e 'display notification "%s" with title "Pomodoro" sound name "Glass"']],
@@ -88,28 +94,22 @@ local function start_phase(next_phase)
   last_tick = os.time()
   running = true
 
-  if phase == "focus" then
-    notify("Focus started")
-  elseif phase == "short" then
-    notify("Short break started")
-  else
-    notify("Long break started")
-  end
-
   update_display()
 end
 
 local function advance_phase()
+  local previous_phase = phase
+  local next_phase = "focus"
   if phase == "focus" then
     focus_completed = focus_completed + 1
     if focus_completed % cycle_total == 0 then
-      start_phase("long")
+      next_phase = "long"
     else
-      start_phase("short")
+      next_phase = "short"
     end
-  else
-    start_phase("focus")
   end
+  notify(string.format("%s ended, %s started", phase_label(previous_phase), phase_label(next_phase)))
+  start_phase(next_phase)
 end
 
 local function toggle_running()

@@ -442,10 +442,7 @@ local function populate_wifi_details()
 end
 
 local function wifi_on_click(env)
-  if env.BUTTON == "right" then
-    sbar.exec("open 'x-apple.systempreferences:com.apple.wifi-settings-extension' || open 'x-apple.systempreferences:com.apple.Network-Settings.extension'")
-    return
-  end
+  if env.BUTTON ~= "left" then return end
   if wifi_popup.is_showing() then
     wifi_popup.hide()
   else

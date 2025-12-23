@@ -92,7 +92,7 @@ end
 
 local function build_onecall_url(lat, lon, key)
   return string.format(
-    "https://api.openweathermap.org/data/3.0/onecall?lat=%s&lon=%s&exclude=minutely,hourly,daily,alerts&units=metric&lang=zh_cn&appid=%s",
+    "https://api.openweathermap.org/data/3.0/onecall?lat=%s&lon=%s&exclude=minutely,hourly,daily,alerts&units=metric&lang=en&appid=%s",
     lat, lon, key
   )
 end
@@ -325,6 +325,18 @@ local sunset_item = sbar.add("item", {
   label = { align = "right", string = "—", width = right_col_w },
 })
 
+local action_openweather = sbar.add("item", {
+  position = popup_pos,
+  width = popup_width,
+  icon = { align = "left", string = "Open OpenWeather map", width = popup_width },
+})
+
+local action_apple_weather = sbar.add("item", {
+  position = popup_pos,
+  width = popup_width,
+  icon = { align = "left", string = "Open Apple Weather", width = popup_width },
+})
+
 local current_data = nil
 local current_location_label = nil
 
@@ -465,17 +477,7 @@ end
 
 -- Click handlers
 local function on_click(env)
-  if env.BUTTON == "right" then
-    local lat = current_data and current_data.lat or nil
-    local lon = current_data and current_data.lon or nil
-    if lat and lon then
-      local map_url = "https://openweathermap.org/weathermap?basemap=map&cities=true&layer=temperature&lat=" .. lat .. "&lon=" .. lon .. "&zoom=10"
-      exec("open \"" .. map_url .. "\"")
-    else
-    exec("open -a \"Weather\"")
-    end
-    return
-  end
+  if env.BUTTON ~= "left" then return end
   -- left click: toggle popup; fill contents on show
   if weather_popup.is_showing() then
     weather_popup.hide()
@@ -485,6 +487,21 @@ local function on_click(env)
 end
 
 weather:subscribe("mouse.clicked", on_click)
+action_openweather:subscribe("mouse.clicked", function(env)
+  if env.BUTTON ~= "left" then return end
+  local lat = current_data and current_data.lat or nil
+  local lon = current_data and current_data.lon or nil
+  if lat and lon then
+    local map_url = "https://openweathermap.org/weathermap?basemap=map&cities=true&layer=temperature&lat=" .. lat .. "&lon=" .. lon .. "&zoom=10"
+    exec("open \"" .. map_url .. "\"")
+  else
+    exec("open \"https://openweathermap.org\"")
+  end
+end)
+action_apple_weather:subscribe("mouse.clicked", function(env)
+  if env.BUTTON ~= "left" then return end
+  exec("open -a \"Weather\"")
+end)
 title_item:subscribe("mouse.clicked", function(_)
   -- Clear caches and clear popup contents immediately
   cond_item:set({ label = "—" })
