@@ -1,15 +1,54 @@
 local colors = require("colors")
-local icons = require("icons")
 local settings = require("settings")
 local app_icons = require("helpers.app_icons")
+local center_popup = require("helpers.center_popup")
 
 local spaces = {}
+
+local active_space = nil
+local space_icons = {}
+
+local preview_width = 520
+local preview_height = 300
+local preview_y_offset = 160
+local preview_space_id = nil
+
+local space_preview = center_popup.create("space.preview", {
+  width = preview_width,
+  height = preview_height,
+  y_offset = preview_y_offset,
+  title = "SPACE",
+  meta = "APPS: NONE",
+  image_scale = 0.45,
+})
+
+local function show_space_preview(space_id)
+  local icons_line = space_icons[space_id] or ""
+  local has_icons = icons_line ~= ""
+  preview_space_id = space_id
+  space_preview.set_title("SPACE " .. tostring(space_id))
+  space_preview.set_meta("APPS: " .. (has_icons and icons_line or "NONE"))
+  space_preview.set_image("space." .. tostring(space_id))
+  space_preview.show()
+end
+
+local function maybe_update_preview_apps(space_id, icons_line)
+  if preview_space_id ~= space_id then
+    return
+  end
+  if not space_preview.is_showing() then
+    return
+  end
+  local has_icons = icons_line ~= ""
+  space_preview.set_meta("APPS: " .. (has_icons and icons_line or "NONE"))
+end
 
 -- Mapping from space index to macOS key codes for Command+Number switching
 local keycodes_by_space = { [1] = 18, [2] = 19, [3] = 20, [4] = 21, [5] = 23, [6] = 22, [7] = 26, [8] = 28, [9] = 25, [10] = 29 }
 
 for i = 1, 10, 1 do
   local space = sbar.add("space", "space." .. i, {
+    position = "right",
     space = i,
     icon = {
       font = { family = settings.font.numbers },
@@ -41,6 +80,7 @@ for i = 1, 10, 1 do
 
   -- Single item bracket for space items to achieve double border on highlight
   local space_bracket = sbar.add("bracket", { space.name }, {
+    position = "right",
     background = {
       color = colors.transparent,
       border_color = colors.bg2,
@@ -51,22 +91,10 @@ for i = 1, 10, 1 do
 
   -- Padding space
   sbar.add("space", "space.padding." .. i, {
+    position = "right",
     space = i,
     script = "",
     width = settings.group_paddings,
-  })
-
-  local space_popup = sbar.add("item", {
-    position = "popup." .. space.name,
-    padding_left= 5,
-    padding_right= 0,
-    background = {
-      drawing = true,
-      image = {
-        corner_radius = 9,
-        scale = 0.2
-      }
-    }
   })
 
   space:subscribe("space_change", function(env)
@@ -74,9 +102,12 @@ for i = 1, 10, 1 do
     local color = selected and colors.grey or colors.bg2
     space:set({
       icon = { highlight = selected, },
-      label = { highlight = selected },
+      label = { highlight = selected, string = selected and (space_icons[i] or "") or "" },
       background = { border_color = selected and colors.black or colors.bg2 }
     })
+    if selected then
+      active_space = i
+    end
     space_bracket:set({
       background = { border_color = selected and colors.grey or colors.bg2 }
     })
@@ -84,8 +115,10 @@ for i = 1, 10, 1 do
 
   space:subscribe("mouse.clicked", function(env)
     if env.BUTTON == "other" then
-      space_popup:set({ background = { image = "space." .. env.SID } })
-      space:set({ popup = { drawing = "toggle" } })
+      local sid = tonumber(env.SID)
+      if sid ~= nil then
+        show_space_preview(sid)
+      end
     else
       local sid = tonumber(env.SID)
       local keycode = sid and keycodes_by_space[sid] or nil
@@ -94,37 +127,11 @@ for i = 1, 10, 1 do
       end
     end
   end)
-
-  space:subscribe("mouse.exited", function(_)
-    space:set({ popup = { drawing = false } })
-  end)
 end
 
 local space_window_observer = sbar.add("item", {
   drawing = false,
   updates = true,
-})
-
-local spaces_indicator = sbar.add("item", {
-  padding_left = -3,
-  padding_right = 0,
-  icon = {
-    padding_left = 8,
-    padding_right = 9,
-    color = colors.grey,
-    string = icons.switch.on,
-  },
-  label = {
-    width = 0,
-    padding_left = 0,
-    padding_right = 8,
-    string = "Spaces",
-    color = colors.bg1,
-  },
-  background = {
-    color = colors.with_alpha(colors.grey, 0.0),
-    border_color = colors.with_alpha(colors.bg1, 0.0),
-  }
 })
 
 space_window_observer:subscribe("space_windows_change", function(env)
@@ -138,12 +145,16 @@ space_window_observer:subscribe("space_windows_change", function(env)
   end
 
   if (no_app) then
-    icon_line = " —"
+    icon_line = ""
   end
   sbar.animate("tanh", 10, function()
     local space_index = tonumber(env.INFO.space)
     if space_index ~= nil and spaces[space_index] ~= nil then
-      spaces[space_index]:set({ label = { string = icon_line } })
+      space_icons[space_index] = icon_line
+      if space_index == active_space then
+        spaces[space_index]:set({ label = { string = icon_line } })
+      end
+      maybe_update_preview_apps(space_index, icon_line)
     end
   end)
 end)
@@ -160,10 +171,14 @@ space_window_observer:subscribe("space_snapshot", function(env)
       icon_line = icon_line .. icon
     end
   else
-    icon_line = " —"
+    icon_line = ""
   end
   if i ~= nil and spaces[i] ~= nil then
-    spaces[i]:set({ label = { string = icon_line } })
+    space_icons[i] = icon_line
+    if i == active_space then
+      spaces[i]:set({ label = { string = icon_line } })
+    end
+    maybe_update_preview_apps(i, icon_line)
   end
 end)
 
@@ -175,46 +190,9 @@ end)
 -- Initialize labels on startup
 for i = 1, 10 do
   if spaces[i] ~= nil then
-    spaces[i]:set({ label = { string = " —" } })
+    spaces[i]:set({ label = { string = "" } })
   end
 end
 
 -- Kick off initial snapshot
 sbar.exec("$CONFIG_DIR/helpers/event_providers/space_scan/bin/space_scan")
-
-spaces_indicator:subscribe("swap_menus_and_spaces", function(env)
-  local currently_on = spaces_indicator:query().icon.value == icons.switch.on
-  spaces_indicator:set({
-    icon = currently_on and icons.switch.off or icons.switch.on
-  })
-end)
-
-spaces_indicator:subscribe("mouse.entered", function(env)
-  sbar.animate("tanh", 5, function()
-    spaces_indicator:set({
-      background = {
-        color = { alpha = 1.0 },
-        border_color = { alpha = 1.0 },
-      },
-      icon = { color = colors.bg1 },
-      label = { width = "dynamic" }
-    })
-  end)
-end)
-
-spaces_indicator:subscribe("mouse.exited", function(env)
-  sbar.animate("tanh", 5, function()
-    spaces_indicator:set({
-      background = {
-        color = { alpha = 0.0 },
-        border_color = { alpha = 0.0 },
-      },
-      icon = { color = colors.grey },
-      label = { width = 0, }
-    })
-  end)
-end)
-
-spaces_indicator:subscribe("mouse.clicked", function(env)
-  sbar.trigger("swap_menus_and_spaces")
-end)
