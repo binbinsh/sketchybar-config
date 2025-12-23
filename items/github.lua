@@ -1,6 +1,6 @@
 local colors = require("colors")
 local settings = require("settings")
-local app_icons = require("helpers.app_icons")
+local app_icons = require("app_icons")
 local center_popup = require("center_popup")
 
 local cache_dir = os.getenv("HOME") .. "/.cache/sketchybar"
