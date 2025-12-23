@@ -23,6 +23,7 @@ for i = 1, max_items, 1 do
       padding_left = 6,
       padding_right = 6,
     },
+    background = { drawing = false },
     click_script = "$CONFIG_DIR/helpers/menus/bin/menus -s " .. i,
   })
 
@@ -30,7 +31,11 @@ for i = 1, max_items, 1 do
 end
 
 sbar.add("bracket", { '/menu\\..*/' }, {
-  background = { color = colors.bg1 }
+  background = {
+    color = colors.bg1,
+    border_color = colors.bg2,
+    border_width = 2,
+  }
 })
 
 local menu_padding = sbar.add("item", "menu.padding", {
