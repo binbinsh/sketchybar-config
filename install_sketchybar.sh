@@ -33,10 +33,23 @@ if [ -d "$TARGET_DIR/.git" ]; then
     git clone --depth=1 "$REPO_URL" "$TARGET_DIR"
   else
     echo "Updating existing repo in $TARGET_DIR"
-    default_branch=$(git -C "$TARGET_DIR" remote show origin | sed -n '/HEAD branch/s/.*: //p')
     git -C "$TARGET_DIR" fetch --prune origin
-    git -C "$TARGET_DIR" checkout "$default_branch" >/dev/null 2>&1 || true
-    git -C "$TARGET_DIR" reset --hard "origin/$default_branch"
+    default_branch=$(git -C "$TARGET_DIR" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+    if [ -z "$default_branch" ]; then
+      if git -C "$TARGET_DIR" show-ref --verify --quiet refs/remotes/origin/main; then
+        default_branch="main"
+      elif git -C "$TARGET_DIR" show-ref --verify --quiet refs/remotes/origin/master; then
+        default_branch="master"
+      else
+        default_branch=$(git -C "$TARGET_DIR" for-each-ref --format='%(refname:short)' refs/remotes/origin | sed -n 's|^origin/||p' | head -n 1)
+      fi
+    fi
+    if [ -n "$default_branch" ]; then
+      git -C "$TARGET_DIR" checkout "$default_branch" >/dev/null 2>&1 || true
+      git -C "$TARGET_DIR" reset --hard "origin/$default_branch"
+    else
+      echo "Warning: Could not determine default branch for $TARGET_DIR; skipping reset."
+    fi
   fi
 elif [ -d "$TARGET_DIR" ]; then
   echo "Backing up existing non-git directory at $TARGET_DIR"
