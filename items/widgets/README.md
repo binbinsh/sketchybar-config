@@ -10,7 +10,7 @@ Quick reference for the app integrations and interactive widgets in this directo
 - [1Password](#1password-onepasswordlua)
 - [GitHub](#github-githublua)
 - [WeChat](#wechat-wechatlua)
-- [iStat Menus](#istat-menus-istat_menuslua)
+- [System Stats](#system-stats-system_statslua)
 - [Time Machine](#time-machine-time_machinelua)
 - [Synergy](#synergy-synergylua)
 - [Weather](#weather-weatherlua)
@@ -57,10 +57,9 @@ Quick reference for the app integrations and interactive widgets in this directo
 - Shows unread count from the Dock badge; click opens or activates WeChat.
 - Setup: install the macOS app (`com.tencent.xinWeChat`), enable App Icon Badges (System Settings -> Notifications -> WeChat), and allow `osascript` in Accessibility (System Settings -> Privacy & Security -> Accessibility).
 
-## iStat Menus (`istat_menus.lua`)
+## System Stats (`system_stats.lua`)
 
-- Automatically aliases the Combined menu extra when available and groups it; click opens Activity Monitor.
-- Setup: enable the Combined menu extra in iStat Menus so it can be aliased.
+- Shows CPU/GPU usage with current temperatures plus memory usage, driven by the native helper in `helpers/system_stats`.
 
 ## Time Machine (`time_machine.lua`)
 

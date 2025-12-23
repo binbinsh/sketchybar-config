@@ -1,4 +1,4 @@
-require("items.widgets.istat_menus")
+require("items.widgets.system_stats")
 require("items.widgets.volume")
 require("items.widgets.wifi")
 require("items.widgets.weather")
