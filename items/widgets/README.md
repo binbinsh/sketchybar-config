@@ -3,6 +3,7 @@
 Quick reference for the app integrations and interactive widgets in this directory.
 
 - [LM Studio](#lm-studio-lm_studiolua)
+- [Shortcuts](#shortcuts-shortcutslua)
 - [Clipboard](#clipboard-clipboardlua)
 - [Dictionary](#dictionary-dictionarylua)
 - [Volume](#volume-volumelua)
@@ -19,6 +20,11 @@ Quick reference for the app integrations and interactive widgets in this directo
 
 - Hover tints the icon; left-click opens a popup listing installed models (from `lms ls`) so you can load/start one; the last row unloads all models; right-click opens the LM Studio app.
 - Setup: install the CLI with `~/.lmstudio/bin/lms bootstrap` (or ensure `lms` is on `PATH`); the popup hints if the CLI is missing.
+
+## Shortcuts (`shortcuts.lua`)
+
+- Single launcher icon that shows a popup summary for Clipboard, Dictionary, LM Studio, 1Password, Quantumult X, Synergy, Time Machine, Ubuntu, and WeChat.
+- Left-click toggles the popup; right-click does nothing.
 
 ## Clipboard (`clipboard.lua`)
 
