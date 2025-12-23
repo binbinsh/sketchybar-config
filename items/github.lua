@@ -30,13 +30,20 @@ local github = sbar.add("item", "widgets.github", {
   padding_left = settings.paddings,
   padding_right = settings.paddings,
   updates = true,
-  popup = { align = "center" },
 })
 
-center_popup.register(github)
+local popup_width = 480
+local github_popup = center_popup.create("github.popup", {
+  width = popup_width,
+  height = 300,
+  popup_height = 26,
+  title = "GitHub",
+  meta = "",
+})
+github_popup.meta_item:set({ drawing = false })
+github_popup.body_item:set({ drawing = false })
 
-local popup_width = 260
-local popup_pos = "popup." .. github.name
+local popup_pos = github_popup.position
 
 local title_item = sbar.add("item", {
   position = popup_pos,
@@ -217,13 +224,13 @@ end
 local function github_fetch_cmd(since, orgs)
   local env_parts = {}
   if since and since ~= "" then
-    env_parts[#env_parts + 1] = "GITHUB_SINCE=" .. string.format("%q", since)
+    env_parts[#env_parts + 1] = "export GITHUB_SINCE=" .. string.format("%q", since)
   end
   if orgs and orgs ~= "" then
-    env_parts[#env_parts + 1] = "GITHUB_ORGS=" .. string.format("%q", orgs)
+    env_parts[#env_parts + 1] = "export GITHUB_ORGS=" .. string.format("%q", orgs)
   end
-  local env_prefix = table.concat(env_parts, " ")
-  if env_prefix ~= "" then env_prefix = env_prefix .. " " end
+  local env_prefix = table.concat(env_parts, "; ")
+  if env_prefix ~= "" then env_prefix = env_prefix .. "; " end
 
   local script = [=[
 if ! command -v gh >/dev/null 2>&1; then
@@ -264,7 +271,10 @@ search_total() {
     if [ -n "$scope" ]; then
       q="$q $scope"
     fi
-    count=$(gh api /search/issues -f q="$q" --jq '.total_count' 2>/dev/null) || return 1
+    count=$(gh api graphql \
+      -f query='query($q:String!){search(query:$q,type:ISSUE){issueCount}}' \
+      -f q="$q" \
+      --jq '.data.search.issueCount' 2>/dev/null) || return 1
     total=$((total + count))
   done
   echo "$total"
@@ -277,13 +287,16 @@ if [ -n "$GITHUB_SINCE" ]; then
 else
   new_issues=0
 fi
-assigned_issues=$(gh api /search/issues -f q="is:issue is:open assignee:$login" --jq '.total_count' 2>/dev/null) || { echo "ERR|search_failed"; exit 0; }
-review_requests=$(gh api /search/issues -f q="is:pr is:open review-requested:$login" --jq '.total_count' 2>/dev/null) || { echo "ERR|search_failed"; exit 0; }
+assigned_issues=$(search_total "is:issue is:open assignee:$login") || { echo "ERR|search_failed"; exit 0; }
+review_requests=$(search_total "is:pr is:open review-requested:$login") || { echo "ERR|search_failed"; exit 0; }
 
 echo "OK|$login|$name|$repos|$followers|$following|$open_issues|$open_prs|$assigned_issues|$review_requests|$new_issues"
 ]=]
+  local script_path = cache_dir .. "/github_fetch.zsh"
+  write_file(script_path, script)
 
-  return "/bin/zsh -lc " .. string.format("%q", env_prefix .. script)
+  local cmd = env_prefix .. "/bin/zsh " .. string.format("%q", script_path)
+  return "/bin/zsh -lc " .. string.format("%q", cmd)
 end
 
 local state = {
@@ -446,9 +459,11 @@ github:subscribe("mouse.clicked", function(env)
     return
   end
 
-  center_popup.toggle(github, function()
-    update_github()
-  end)
+  if github_popup.is_showing() then
+    github_popup.hide()
+  else
+    github_popup.show(update_github)
+  end
 end)
 
 action_open_issues:subscribe("mouse.clicked", function(_)
@@ -460,7 +475,7 @@ action_open_notifications:subscribe("mouse.clicked", function(_)
   sbar.exec("/bin/zsh -lc 'open https://github.com/notifications'")
 end)
 
-center_popup.auto_hide(github)
+github_popup.add_close_row()
 
 github:set({ update_freq = 120 })
 github:subscribe("routine", function(_) update_github() end)

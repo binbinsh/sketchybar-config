@@ -1,13 +1,13 @@
 return {
-  text = "PingFang SC", -- Used for text
-  numbers = "SF Mono", -- Used for numbers
+  text = "JetBrainsMono Nerd Font", -- Used for text
+  numbers = "JetBrainsMono Nerd Font", -- Used for numbers
 
   -- Unified font style map
   style_map = {
     ["Regular"] = "Regular",
-    ["Semibold"] = "Semibold",
-    ["Bold"] = "Bold",
-    ["Heavy"] = "Heavy",
-    ["Black"] = "Black",
+    ["Semibold"] = "Medium",
+    ["Bold"] = "SemiBold",
+    ["Heavy"] = "Bold",
+    ["Black"] = "ExtraBold",
   }
 }

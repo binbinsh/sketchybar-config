@@ -1,52 +1,16 @@
 local colors = require("colors")
 local settings = require("settings")
 local app_icons = require("app_icons")
-local center_popup = require("center_popup")
 
 local spaces = {}
 
 local active_space = nil
 local space_icons = {}
 
-local preview_width = 520
-local preview_height = 300
-local preview_y_offset = 160
-local preview_space_id = nil
-
-local space_preview = center_popup.create("space.preview", {
-  width = preview_width,
-  height = preview_height,
-  y_offset = preview_y_offset,
-  title = "SPACE",
-  meta = "APPS: NONE",
-  image_scale = 0.45,
-})
-
-local function show_space_preview(space_id)
-  local icons_line = space_icons[space_id] or ""
-  local has_icons = icons_line ~= ""
-  preview_space_id = space_id
-  space_preview.set_title("SPACE " .. tostring(space_id))
-  space_preview.set_meta("APPS: " .. (has_icons and icons_line or "NONE"))
-  space_preview.set_image("space." .. tostring(space_id))
-  space_preview.show()
-end
-
-local function maybe_update_preview_apps(space_id, icons_line)
-  if preview_space_id ~= space_id then
-    return
-  end
-  if not space_preview.is_showing() then
-    return
-  end
-  local has_icons = icons_line ~= ""
-  space_preview.set_meta("APPS: " .. (has_icons and icons_line or "NONE"))
-end
-
 -- Mapping from space index to macOS key codes for Command+Number switching
 local keycodes_by_space = { [1] = 18, [2] = 19, [3] = 20, [4] = 21, [5] = 23, [6] = 22, [7] = 26, [8] = 28, [9] = 25, [10] = 29 }
 
-for i = 1, 10, 1 do
+for i = 10, 1, -1 do
   local space = sbar.add("space", "space." .. i, {
     position = "right",
     space = i,
@@ -114,19 +78,13 @@ for i = 1, 10, 1 do
   end)
 
   space:subscribe("mouse.clicked", function(env)
-    if env.BUTTON == "other" then
-      local sid = tonumber(env.SID)
-      if sid ~= nil then
-        show_space_preview(sid)
-      end
-    else
-      local sid = tonumber(env.SID)
-      local keycode = sid and keycodes_by_space[sid] or nil
-      if keycode ~= nil then
-        sbar.exec("osascript -e 'tell application \"System Events\" to key code " .. keycode .. " using command down'")
-      end
+    local sid = tonumber(env.SID)
+    local keycode = sid and keycodes_by_space[sid] or nil
+    if keycode ~= nil then
+      sbar.exec("osascript -e 'tell application \"System Events\" to key code " .. keycode .. " using command down'")
     end
   end)
+
 end
 
 local space_window_observer = sbar.add("item", {
@@ -147,14 +105,13 @@ space_window_observer:subscribe("space_windows_change", function(env)
   if (no_app) then
     icon_line = ""
   end
-  sbar.animate("tanh", 10, function()
+  sbar.animate("tanh", 0.2, function()
     local space_index = tonumber(env.INFO.space)
     if space_index ~= nil and spaces[space_index] ~= nil then
       space_icons[space_index] = icon_line
       if space_index == active_space then
         spaces[space_index]:set({ label = { string = icon_line } })
       end
-      maybe_update_preview_apps(space_index, icon_line)
     end
   end)
 end)
@@ -178,7 +135,6 @@ space_window_observer:subscribe("space_snapshot", function(env)
     if i == active_space then
       spaces[i]:set({ label = { string = icon_line } })
     end
-    maybe_update_preview_apps(i, icon_line)
   end
 end)
 

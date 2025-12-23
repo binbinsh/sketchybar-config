@@ -1,4 +1,3 @@
-*.zip
 .DS_Store
-.env
-ubuntu_target
+remote_host.json
+

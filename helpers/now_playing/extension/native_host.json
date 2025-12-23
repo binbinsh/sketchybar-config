@@ -1,9 +1,0 @@
-{
-  "name": "com.sketchybar.nowplaying",
-  "description": "SketchyBar Now Playing Native Host",
-  "path": "/Users/USERNAME/.config/sketchybar/helpers/now_playing/bin/now_playing",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://REPLACE_WITH_EXTENSION_ID/"
-  ]
-}

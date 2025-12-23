@@ -4,7 +4,7 @@ local settings = require("settings")
 local app_icons = require("app_icons")
 local center_popup = require("center_popup")
 
-local popup_width = 520
+local popup_width = 480
 local name_col_w = 190
 local value_col_w = popup_width - name_col_w
 
@@ -42,7 +42,7 @@ end
 
 local function make_popup(id, title, meta)
   local popup = center_popup.create("shortcuts." .. id, {
-    width = popup_width,
+    fixed_width = popup_width,
     height = 1,
     y_offset = 160,
     title = title,
@@ -101,6 +101,8 @@ local function make_popup(id, title, meta)
     position = position,
     add_row = add_row,
     add_action_row = add_action_row,
+    add_footer_buttons = popup.add_footer_buttons,
+    add_close_row = popup.add_close_row,
   }
 end
 
@@ -143,8 +145,14 @@ local function add_icon_item(key, icon_string, icon_font, popup, on_show, opts)
     item:set({ icon = { color = normal_color() } })
   end)
 
-  item:subscribe("mouse.clicked", only_left_click(function()
-    toggle_popup(popup, on_show)
+  item:subscribe("mouse.clicked", only_left_click(function(env)
+    if opts.on_click then
+      opts.on_click(env)
+      return
+    end
+    if popup then
+      toggle_popup(popup, on_show)
+    end
   end))
 
   return item
@@ -152,42 +160,42 @@ end
 
 local clipboard_popup = make_popup("clipboard", "Clipboard", "Raycast Clipboard History")
 
-clipboard_popup.add_row("History", "Open Raycast", {
-  on_click = function()
-    clipboard_popup.popup.hide()
-    sbar.exec("open 'raycast://extensions/raycast/clipboard-history/clipboard-history'")
-  end,
-})
-
-clipboard_popup.add_row("Ask Clipboard", "Open Raycast", {
-  on_click = function()
-    clipboard_popup.popup.hide()
-    sbar.exec("open 'raycast://extensions/raycast/clipboard-history/ask-clipboard'")
-  end,
-})
-
 local dictionary_popup = make_popup("dictionary", "Dictionary", "Raycast Translate")
-
-dictionary_popup.add_row("Instant translate", "Open", {
-  on_click = function()
-    dictionary_popup.popup.hide()
-    sbar.exec("open 'raycast://extensions/gebeto/translate/instant-translate-view'")
-  end,
+clipboard_popup.add_footer_buttons({
+  {
+    label = "History",
+    on_click = function()
+      clipboard_popup.popup.hide()
+      sbar.exec("open 'raycast://extensions/raycast/clipboard-history/clipboard-history'")
+    end,
+  },
+  {
+    label = "Ask Clipboard",
+    on_click = function()
+      clipboard_popup.popup.hide()
+      sbar.exec("open 'raycast://extensions/raycast/clipboard-history/ask-clipboard'")
+    end,
+  },
 })
 
-dictionary_popup.add_row("Quick translate", "Open", {
-  on_click = function()
-    dictionary_popup.popup.hide()
-    sbar.exec("open 'raycast://extensions/gebeto/translate/quick-translate'")
-  end,
+dictionary_popup.add_footer_buttons({
+  {
+    label = "Instant translate",
+    on_click = function()
+      dictionary_popup.popup.hide()
+      sbar.exec("open 'raycast://extensions/gebeto/translate/instant-translate-view'")
+    end,
+  },
+  {
+    label = "Quick translate",
+    on_click = function()
+      dictionary_popup.popup.hide()
+      sbar.exec("open 'raycast://extensions/gebeto/translate/quick-translate'")
+    end,
+  },
 })
 
 local lm_popup = make_popup("lm_studio", "LM Studio", "Models and server")
-
-lm_popup.add_action_row("Open app", function()
-  lm_popup.popup.hide()
-  sbar.exec("open -a 'LM Studio'")
-end)
 
 local lm_max_rows = 12
 local lm_rows = {}
@@ -445,15 +453,22 @@ end
 
 local onepassword_popup = make_popup("onepassword", "1Password", "Quick Access")
 
-onepassword_popup.add_action_row("Quick Access", function()
-  onepassword_popup.popup.hide()
-  sbar.exec("osascript -e 'tell application \"System Events\" to key code 49 using {command down, shift down}'")
-end)
-
-onepassword_popup.add_action_row("Open app", function()
-  onepassword_popup.popup.hide()
-  sbar.exec("open -a '1Password'")
-end)
+onepassword_popup.add_footer_buttons({
+  {
+    label = "Quick Access",
+    on_click = function()
+      onepassword_popup.popup.hide()
+      sbar.exec("osascript -e 'tell application \"System Events\" to key code 49 using {command down, shift down}'")
+    end,
+  },
+  {
+    label = "Open 1Password",
+    on_click = function()
+      onepassword_popup.popup.hide()
+      sbar.exec("open -a '1Password'")
+    end,
+  },
+})
 
 local qx_popup = make_popup("quantumultx", "Quantumult X", "Public IP info")
 
@@ -490,7 +505,7 @@ local function update_ipinfo()
   end)
 end
 
-qx_popup.add_action_row("Open app", function()
+qx_popup.add_action_row("Open Quantumult X", function()
   qx_popup.popup.hide()
   sbar.exec("open -a 'Quantumult X'")
 end)
@@ -544,7 +559,7 @@ end tell
 APPLESCRIPT
 ']=]
 
-synergy_popup.add_action_row("Open app", function()
+synergy_popup.add_action_row("Open Synergy", function()
   synergy_popup.popup.hide()
   sbar.exec(open_main_cmd)
 end)
@@ -701,16 +716,39 @@ end)
 
 local ubuntu_popup = make_popup("ubuntu", "Ubuntu", "Remote metrics")
 
-local target_path = os.getenv("HOME") .. "/.config/sketchybar/ubuntu_target"
+local target_path = os.getenv("HOME") .. "/.config/sketchybar/remote_host.json"
 local ubuntu_enabled = false
 local ssh_target = ""
-local f = io.open(target_path, "r")
-if f then
-  ssh_target = (f:read("*l") or ""):gsub("%s+$", "")
+
+local function json_escape(value)
+  return tostring(value):gsub("\\", "\\\\"):gsub("\"", "\\\"")
+end
+
+local function applescript_escape(value)
+  return tostring(value):gsub("\\", "\\\\"):gsub("\"", "\\\"")
+end
+
+local function read_ubuntu_host()
+  local f = io.open(target_path, "r")
+  if not f then return "" end
+  local raw = f:read("*a") or ""
   f:close()
-  if ssh_target ~= "" then
-    ubuntu_enabled = true
-  end
+  local host = raw:match("\"host\"%s*:%s*\"(.-)\"") or ""
+  host = host:gsub("\\\"", "\""):gsub("\\\\", "\\")
+  return host:gsub("%s+$", ""):gsub("^%s+", "")
+end
+
+local function write_ubuntu_host(host)
+  local f = io.open(target_path, "w")
+  if not f then return false end
+  f:write("{\"host\":\"" .. json_escape(host) .. "\"}\n")
+  f:close()
+  return true
+end
+
+ssh_target = read_ubuntu_host()
+if ssh_target ~= "" then
+  ubuntu_enabled = true
 end
 
 local function short_host(user_at_host)
@@ -733,38 +771,88 @@ local function shorten_gpu_name(name)
   return name
 end
 
-local load_item
-local cpu_item
-local mem_item
-local home_item
-local nvme_rows
-local gpu_rows
+local load_item = ubuntu_popup.add_row("Load", "-", { label_align = "right" })
+local cpu_item = ubuntu_popup.add_row("CPU", "-", { label_align = "right" })
+local mem_item = ubuntu_popup.add_row("Memory", "-", { label_align = "right" })
+local home_item = ubuntu_popup.add_row("/home", "-", { label_align = "right" })
+
+local nvme_rows = {}
+for i = 1, 8 do
+  nvme_rows[i] = ubuntu_popup.add_row("", "", { drawing = false, label_align = "right" })
+end
+
+local gpu_rows = {}
+for i = 1, 6 do
+  gpu_rows[i] = ubuntu_popup.add_row("", "", { drawing = false, label_align = "right" })
+end
+
 local update_ubuntu
+local status_row = ubuntu_popup.add_row("Status", "No target configured")
+ubuntu_popup.add_action_row("Refresh metrics", function()
+  if update_ubuntu then update_ubuntu() end
+end)
+local selecting_host = false
+
+local function prompt_host_input(message, default_value, on_done)
+  local msg = applescript_escape(message or "Enter SSH target (user@host)")
+  local def = applescript_escape(default_value or "")
+  local cmd = "/bin/zsh -lc 'osascript <<EOF\n" ..
+    "tell application \"System Events\"\n" ..
+    "  activate\n" ..
+    "  display dialog \"" .. msg .. "\" default answer \"" .. def .. "\" with title \"Ubuntu Host\"\n" ..
+    "  text returned of result\n" ..
+    "end tell\n" ..
+    "EOF'"
+  sbar.exec(cmd, function(result, exit_code)
+    if exit_code ~= 0 then if on_done then on_done(false) end return end
+    local target = tostring(result or ""):gsub("%s+$", ""):gsub("^%s+", "")
+    if target == "" then if on_done then on_done(false) end return end
+    if not write_ubuntu_host(target) then if on_done then on_done(false) end return end
+    ssh_target = target
+    ubuntu_enabled = true
+    ubuntu_popup.popup.set_meta("Host: " .. short_host(ssh_target))
+    status_row:set({ drawing = false })
+    load_item:set({ drawing = true })
+    cpu_item:set({ drawing = true })
+    mem_item:set({ drawing = true })
+    home_item:set({ drawing = true })
+    if on_done then on_done(true) end
+  end)
+end
+
+local function prompt_add_host(on_done)
+  prompt_host_input("Enter SSH target (user@host)", "", on_done)
+end
+
+local function prompt_select_host(on_done)
+  local message = "Enter SSH target (user@host)"
+  local default_value = ssh_target or ""
+  prompt_host_input(message, default_value, function(ok)
+    if on_done then on_done(ok) end
+  end)
+end
+
+ubuntu_popup.add_action_row("Switch host", function()
+  if not ubuntu_enabled then
+    prompt_add_host(function(ok)
+      if ok and update_ubuntu then update_ubuntu() end
+    end)
+    return
+  end
+  prompt_select_host(function(ok)
+    if ok and update_ubuntu then update_ubuntu() end
+  end)
+end)
 
 if ubuntu_enabled then
   ubuntu_popup.popup.set_meta("Host: " .. short_host(ssh_target))
-
-  ubuntu_popup.add_action_row("Refresh metrics", function()
-    if update_ubuntu then update_ubuntu() end
-  end)
-
-  load_item = ubuntu_popup.add_row("Load", "-", { label_align = "right" })
-  cpu_item = ubuntu_popup.add_row("CPU", "-", { label_align = "right" })
-  mem_item = ubuntu_popup.add_row("Memory", "-", { label_align = "right" })
-  home_item = ubuntu_popup.add_row("/home", "-", { label_align = "right" })
-
-  nvme_rows = {}
-  for i = 1, 8 do
-    nvme_rows[i] = ubuntu_popup.add_row("", "", { drawing = false, label_align = "right" })
-  end
-
-  gpu_rows = {}
-  for i = 1, 6 do
-    gpu_rows[i] = ubuntu_popup.add_row("", "", { drawing = false, label_align = "right" })
-  end
+  status_row:set({ drawing = false })
 else
   ubuntu_popup.popup.set_meta("No target configured")
-  ubuntu_popup.add_row("Status", "No target configured")
+  load_item:set({ drawing = false })
+  cpu_item:set({ drawing = false })
+  mem_item:set({ drawing = false })
+  home_item:set({ drawing = false })
 end
 
 local function parse_ssh_output(out)
@@ -960,27 +1048,17 @@ local function set_ubuntu_error(text)
   end
 end
 
-if ubuntu_enabled then
-  update_ubuntu = function()
-    sbar.exec(build_ssh(), function(out, _)
-      if not out or out == "" then
-        set_ubuntu_error("Unreachable")
-        return
-      end
-      local st = parse_ssh_output(out)
-      apply_state(st)
-    end)
-  end
+update_ubuntu = function()
+  if not ubuntu_enabled then return end
+  sbar.exec(build_ssh(), function(out, _)
+    if not out or out == "" then
+      set_ubuntu_error("Unreachable")
+      return
+    end
+    local st = parse_ssh_output(out)
+    apply_state(st)
+  end)
 end
-
-local wechat_popup = make_popup("wechat", "WeChat", "Unread badge")
-
-local wechat_unread = wechat_popup.add_row("Unread", "-", { label_align = "right" })
-
-wechat_popup.add_action_row("Open app", function()
-  wechat_popup.popup.hide()
-  sbar.exec("/bin/zsh -lc 'open -a WeChat || open -b com.tencent.xinWeChat'")
-end)
 
 local clipboard_icon = icons.clipboard
 local dictionary_icon = icons.translate
@@ -990,6 +1068,7 @@ local qx_icon, qx_font = app_icon("Quantumult X", icons.quantumultx, 16.0)
 local synergy_icon = icons.synergy
 local time_machine_icon = icons.time_machine
 local ubuntu_icon = icons.ubuntu
+local lock_icon = icons.lock
 local wechat_icon, wechat_font = app_icon("WeChat", icons.clipboard, 19.0)
 
 local icon_font = {
@@ -998,24 +1077,59 @@ local icon_font = {
   size = 16.0,
 }
 
-add_icon_item("clipboard", clipboard_icon, icon_font, clipboard_popup.popup, nil)
-add_icon_item("dictionary", dictionary_icon, icon_font, dictionary_popup.popup, nil)
+add_icon_item("clipboard", clipboard_icon, icon_font, clipboard_popup.popup, nil, {
+  on_click = function()
+    sbar.exec("open 'raycast://extensions/raycast/clipboard-history/clipboard-history'")
+  end,
+})
+add_icon_item("dictionary", dictionary_icon, icon_font, dictionary_popup.popup, nil, {
+  on_click = function()
+    sbar.exec("open 'raycast://extensions/gebeto/translate/quick-translate'")
+  end,
+})
 add_icon_item("lm_studio", lm_icon, lm_font, lm_popup.popup, populate_lm_studio)
-add_icon_item("onepassword", onepassword_icon, onepassword_font, onepassword_popup.popup, nil)
+add_icon_item("onepassword", onepassword_icon, onepassword_font, onepassword_popup.popup, nil, {
+  on_click = function()
+    sbar.exec("/bin/zsh -lc 'open -a \"1Password\"'")
+  end,
+})
 add_icon_item("quantumultx", qx_icon, qx_font, qx_popup.popup, update_ipinfo)
 add_icon_item("synergy", synergy_icon, icon_font, synergy_popup.popup, populate_synergy)
 add_icon_item("time_machine", time_machine_icon, icon_font, tm_popup.popup, populate_tm_details)
-add_icon_item("ubuntu", ubuntu_icon, icon_font, ubuntu_popup.popup, function()
-  if update_ubuntu then update_ubuntu() end
-end)
+add_icon_item("ubuntu", ubuntu_icon, icon_font, ubuntu_popup.popup, nil, {
+  on_click = function()
+    if not ubuntu_enabled then
+      prompt_add_host(function(ok)
+        if not ok then return end
+        toggle_popup(ubuntu_popup.popup, function()
+          if update_ubuntu then update_ubuntu() end
+        end)
+      end)
+      return
+    end
+    toggle_popup(ubuntu_popup.popup, function()
+      if update_ubuntu then update_ubuntu() end
+    end)
+  end,
+})
+
+if ubuntu_enabled then
+  update_ubuntu()
+end
+add_icon_item("lock", lock_icon, icon_font, nil, nil, {
+  on_click = function()
+    sbar.exec([[osascript -e 'tell application "System Events" to keystroke "q" using {command down, control down}']])
+  end,
+})
 
 local wechat_icon_color = colors.white
 local wechat_item
 local update_wechat_badge
 
-wechat_item = add_icon_item("wechat", wechat_icon, wechat_font, wechat_popup.popup, function()
-  if update_wechat_badge then update_wechat_badge() end
-end, {
+wechat_item = add_icon_item("wechat", wechat_icon, wechat_font, nil, nil, {
+  on_click = function()
+    sbar.exec("/bin/zsh -lc 'open -a WeChat || open -b com.tencent.xinWeChat'")
+  end,
   label = {
     drawing = true,
     string = "",
@@ -1029,6 +1143,19 @@ end, {
     return wechat_icon_color
   end,
 })
+
+clipboard_popup.add_close_row()
+dictionary_popup.add_close_row()
+lm_popup.add_action_row("Open LM Studio", function()
+  lm_popup.popup.hide()
+  sbar.exec("open -a 'LM Studio'")
+end)
+lm_popup.add_close_row()
+onepassword_popup.add_close_row()
+qx_popup.add_close_row()
+synergy_popup.add_close_row()
+tm_popup.add_close_row()
+ubuntu_popup.add_close_row()
 
 local function jxa_dock_badge_for(app_name)
   local js_lines = {
@@ -1074,14 +1201,12 @@ update_wechat_badge = function()
         label = { drawing = false, string = "" },
         icon = { color = wechat_icon_color },
       })
-      wechat_unread:set({ label = { string = "None", color = colors.white } })
     else
       wechat_icon_color = colors.green
       wechat_item:set({
         label = { drawing = true, string = badge },
         icon = { color = wechat_icon_color },
       })
-      wechat_unread:set({ label = { string = badge, color = colors.green } })
     end
   end)
 end

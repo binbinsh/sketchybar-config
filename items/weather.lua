@@ -7,7 +7,7 @@ local cache_dir = os.getenv("HOME") .. "/.cache/sketchybar"
 local weather_cache = cache_dir .. "/weather.txt"
 local location_cache = cache_dir .. "/location.txt"
 
-local popup_width = 250
+local popup_width = 480
 local weather_cache_ttl = 600    -- 10 minutes
 local location_cache_ttl = 1800   -- 30 minutes
 
@@ -235,20 +235,28 @@ local weather_bracket = sbar.add("bracket", "widgets.weather.bracket", {
   weather.name,
 }, {
   background = { color = colors.bg1 },
-  popup = { align = "center" }
 })
 
-center_popup.register(weather_bracket)
+local weather_popup = center_popup.create("weather.popup", {
+  width = popup_width,
+  height = 280,
+  popup_height = 26,
+  title = "Weather",
+  meta = "",
+})
+weather_popup.meta_item:set({ drawing = false })
+weather_popup.body_item:set({ drawing = false })
 
 sbar.add("item", { position = "right", width = settings.group_paddings })
 
 -- Popup items
 local left_col_w = math.floor(popup_width * 0.55)
 local right_col_w = popup_width - left_col_w
+local popup_pos = weather_popup.position
 
 -- Title row (centered) like Wi‑Fi popup title
 local title_item = sbar.add("item", {
-  position = "popup." .. weather_bracket.name,
+  position = popup_pos,
   icon = {
     font = { style = settings.font.style_map["Bold"] },
     string = "📍",
@@ -264,55 +272,55 @@ local title_item = sbar.add("item", {
 
 -- Detail rows: English text on the left, value on the right
 local cond_item = sbar.add("item", {
-  position = "popup." .. weather_bracket.name,
+  position = popup_pos,
   icon = { align = "left", string = "Condition:", width = left_col_w },
   label = { align = "right", string = "—", width = right_col_w },
 })
 
 local temp_item = sbar.add("item", {
-  position = "popup." .. weather_bracket.name,
+  position = popup_pos,
   icon = { align = "left", string = "Temperature:", width = left_col_w },
   label = { align = "right", string = "—", width = right_col_w },
 })
 
 local feels_item = sbar.add("item", {
-  position = "popup." .. weather_bracket.name,
+  position = popup_pos,
   icon = { align = "left", string = "Feels like:", width = left_col_w },
   label = { align = "right", string = "—", width = right_col_w },
 })
 
 local humidity_item = sbar.add("item", {
-  position = "popup." .. weather_bracket.name,
+  position = popup_pos,
   icon = { align = "left", string = "Humidity:", width = left_col_w },
   label = { align = "right", string = "—", width = right_col_w },
 })
 
 local wind_item = sbar.add("item", {
-  position = "popup." .. weather_bracket.name,
+  position = popup_pos,
   icon = { align = "left", string = "Wind:", width = left_col_w },
   label = { align = "right", string = "—", width = right_col_w },
 })
 
 local pressure_item = sbar.add("item", {
-  position = "popup." .. weather_bracket.name,
+  position = popup_pos,
   icon = { align = "left", string = "Pressure:", width = left_col_w },
   label = { align = "right", string = "—", width = right_col_w },
 })
 
 local tz_item = sbar.add("item", {
-  position = "popup." .. weather_bracket.name,
+  position = popup_pos,
   icon = { align = "left", string = "Time zone:", width = left_col_w },
   label = { align = "right", string = "—", width = right_col_w },
 })
 
 local sunrise_item = sbar.add("item", {
-  position = "popup." .. weather_bracket.name,
+  position = popup_pos,
   icon = { align = "left", string = "Sunrise:", width = left_col_w },
   label = { align = "right", string = "—", width = right_col_w },
 })
 
 local sunset_item = sbar.add("item", {
-  position = "popup." .. weather_bracket.name,
+  position = popup_pos,
   icon = { align = "left", string = "Sunset:", width = left_col_w },
   label = { align = "right", string = "—", width = right_col_w },
 })
@@ -469,7 +477,11 @@ local function on_click(env)
     return
   end
   -- left click: toggle popup; fill contents on show
-  center_popup.toggle(weather_bracket, update_popup_contents)
+  if weather_popup.is_showing() then
+    weather_popup.hide()
+  else
+    weather_popup.show(update_popup_contents)
+  end
 end
 
 weather:subscribe("mouse.clicked", on_click)
@@ -490,7 +502,7 @@ title_item:subscribe("mouse.clicked", function(_)
     refresh(true)
   end)
 end)
-center_popup.auto_hide(weather_bracket, weather)
+weather_popup.add_close_row()
 
 -- Periodic updates and initial paint (hourly)
 weather:set({ updates = true, update_freq = weather_cache_ttl })

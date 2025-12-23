@@ -93,7 +93,9 @@ volume_percent:subscribe("volume_change", function(env)
 end)
 
 local function volume_collapse_details()
-  local drawing = volume_bracket:query().popup.drawing == "on"
+  local query = volume_bracket:query() or {}
+  if not query.popup then return end
+  local drawing = query.popup.drawing == "on"
   if not drawing then return end
   volume_bracket:set({ popup = { drawing = false } })
   sbar.remove('/volume.device\\.*/')

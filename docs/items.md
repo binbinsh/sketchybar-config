@@ -9,7 +9,6 @@ Detailed reference for items and widgets defined in `items/`.
 - [GitHub](#github-githublua)
 - [System Stats](#system-stats-system_statslua)
 - [Weather](#weather-weatherlua)
-- [Now Playing](#now-playing-now_playinglua)
 - [WeChat](#wechat-wechatlua)
 
 ## Overview
@@ -61,8 +60,3 @@ security add-generic-password -a "$USER" -s OPENWEATHERMAP_API_KEY -w '<YOUR_API
 ```
 
 The widget reads it with `security find-generic-password -a "$USER" -s OPENWEATHERMAP_API_KEY -w`. New keys can take 1-2 hours to activate.
-
-## Now Playing (`now_playing.lua`)
-
-- Displays track metadata (title, artist, album) for Apple Music, Spotify, and YouTube Music (via the browser bridge).
-- See `now_playing.md` for the Native Messaging bridge and installation steps.

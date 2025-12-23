@@ -12,10 +12,18 @@ Install the config (Homebrew required):
 curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/install_sketchybar.sh | sh
 ```
 
+## Features
+
+- Weather: Location-aware current conditions and detailed popup with refresh controls.
+- System stats: CPU/GPU/temperature and memory metrics via the native helper.
+- GitHub: Issue/PR/repo counts plus a new-issue badge.
+- Pomodoro: Minimal focus timer with click controls and notifications.
+- WeChat: Unread badge display with click-to-open behavior.
+- Ubuntu monitor: Remote CPU/GPU/memory/load metrics over SSH.
+
 ## Docs
 
 - Items and widgets: `docs/items.md`.
 - Location helper: `docs/location.md`.
 - Space scan helper: `docs/space_scan.md`.
-- Now Playing bridge: `docs/now_playing.md`.
 - System stats: `docs/system_stats.md`.

@@ -16,9 +16,9 @@ for i = 1, max_items, 1 do
     icon = { drawing = false },
     label = {
       font = {
-        family = settings.font.text,
-        style = settings.font.style_map["Semibold"],
-          size = 13.0
+        family = "PingFang SC",
+        style = settings.font.style_map["Bold"],
+        size = 13.0
       },
       padding_left = 6,
       padding_right = 6,

@@ -1,5 +1,6 @@
 local settings = require("settings")
 local colors = require("colors")
+local default_font = require("default_font")
 
 -- Equivalent to the --default domain
 sbar.default({
@@ -7,7 +8,7 @@ sbar.default({
   icon = {
     font = {
       family = settings.font.icons,
-      style = settings.font.style_map["Regular"],
+      style = default_font.style_map["Regular"],
       size = 14.0
     },
     color = colors.white,
@@ -17,8 +18,8 @@ sbar.default({
   },
   label = {
     font = {
-      family = settings.font.text,
-      style = settings.font.style_map["Regular"],
+      family = default_font.text,
+      style = default_font.style_map["Regular"],
       size = 13.0
     },
     color = colors.white,

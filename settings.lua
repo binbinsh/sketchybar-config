@@ -4,10 +4,10 @@ return {
 
   icons = "NerdFont", -- available: NerdFont, sf-symbols
 
-  -- Font configuration (JetBrains Mono Light)
+  -- Font configuration (JetBrains Mono Nerd Font)
   font = {
-    text = "JetBrains Mono", -- Used for text
-    numbers = "JetBrains Mono", -- Used for numbers
+    text = "JetBrainsMono Nerd Font", -- Used for text
+    numbers = "JetBrainsMono Nerd Font", -- Used for numbers
     icons = "JetBrainsMono Nerd Font", -- Used for icons (NerdFont glyphs)
     style_map = {
       ["Regular"] = "Light",

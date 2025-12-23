@@ -7,7 +7,7 @@ local center_popup = require("center_popup")
 -- for the network interface "en0", which is fired every 2.0 seconds.
 sbar.exec("killall network_load >/dev/null; $CONFIG_DIR/helpers/network_load/bin/network_load en0 network_update 2.0")
 
-local popup_width = 250
+local popup_width = 480
 
 local wifi_up = sbar.add("item", "widgets.wifi1", {
   position = "right",
@@ -29,7 +29,7 @@ local wifi_up = sbar.add("item", "widgets.wifi1", {
       size = 9.0,
     },
     color = colors.red,
-    string = "??? Bps",
+    string = "0.0 MB",
   },
   y_offset = 4,
 })
@@ -53,7 +53,7 @@ local wifi_down = sbar.add("item", "widgets.wifi2", {
       size = 9.0,
     },
     color = colors.blue,
-    string = "??? Bps",
+    string = "0.0 MB",
   },
   y_offset = -4,
 })
@@ -70,10 +70,18 @@ local wifi_bracket = sbar.add("bracket", "widgets.wifi.bracket", {
   wifi_down.name
 }, {
   background = { color = colors.bg1 },
-  popup = { align = "center", height = 30 }
 })
 
-center_popup.register(wifi_bracket)
+local wifi_popup = center_popup.create("wifi.popup", {
+  width = popup_width,
+  height = 360,
+  popup_height = 30,
+  title = "Wi-Fi",
+  meta = "",
+})
+wifi_popup.meta_item:set({ drawing = false })
+wifi_popup.body_item:set({ drawing = false })
+local popup_pos = wifi_popup.position
 
 local function trim(s)
   if not s then return s end
@@ -81,7 +89,7 @@ local function trim(s)
 end
 
 local ssid = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   icon = {
     font = {
       style = settings.font.style_map["Bold"]
@@ -106,7 +114,7 @@ local ssid = sbar.add("item", {
 })
 
 local hostname = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   icon = {
     align = "left",
     string = "Hostname:",
@@ -121,7 +129,7 @@ local hostname = sbar.add("item", {
 })
 
 local ip = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   icon = {
     align = "left",
     string = "IP:",
@@ -135,7 +143,7 @@ local ip = sbar.add("item", {
 })
 
 local mask = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   icon = {
     align = "left",
     string = "Subnet mask:",
@@ -149,7 +157,7 @@ local mask = sbar.add("item", {
 })
 
 local router = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   icon = {
     align = "left",
     string = "Router:",
@@ -164,7 +172,7 @@ local router = sbar.add("item", {
 
 -- Additional Wi‑Fi details (hidden by default; shown when values are available)
 local bssid_item = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   drawing = false,
   icon = {
     align = "left",
@@ -179,7 +187,7 @@ local bssid_item = sbar.add("item", {
 })
 
 local phy_item = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   drawing = false,
   icon = {
     align = "left",
@@ -194,7 +202,7 @@ local phy_item = sbar.add("item", {
 })
 
 local channel_item = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   drawing = false,
   icon = {
     align = "left",
@@ -209,7 +217,7 @@ local channel_item = sbar.add("item", {
 })
 
 local security_item = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   drawing = false,
   icon = {
     align = "left",
@@ -224,7 +232,7 @@ local security_item = sbar.add("item", {
 })
 
 local signal_item = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   drawing = false,
   icon = {
     align = "left",
@@ -239,7 +247,7 @@ local signal_item = sbar.add("item", {
 })
 
 local tx_item = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   drawing = false,
   icon = {
     align = "left",
@@ -254,7 +262,7 @@ local tx_item = sbar.add("item", {
 })
 
 local mcs_item = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   drawing = false,
   icon = {
     align = "left",
@@ -269,7 +277,7 @@ local mcs_item = sbar.add("item", {
 })
 
 local cc_item = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   drawing = false,
   icon = {
     align = "left",
@@ -284,7 +292,7 @@ local cc_item = sbar.add("item", {
 })
 
 local adapter_mac_item = sbar.add("item", {
-  position = "popup." .. wifi_bracket.name,
+  position = popup_pos,
   drawing = false,
   icon = {
     align = "left",
@@ -300,20 +308,28 @@ local adapter_mac_item = sbar.add("item", {
 
 sbar.add("item", { position = "right", width = settings.group_paddings })
 
+local function to_mb(rate)
+  local num = tonumber((rate or ""):match("([%d%.]+)")) or 0
+  local mb = num / (1024 * 1024)
+  return string.format("%.1f MB", mb)
+end
+
 wifi_up:subscribe("network_update", function(env)
-  local up_color = (env.upload == "000 Bps") and colors.grey or colors.red
-  local down_color = (env.download == "000 Bps") and colors.grey or colors.blue
+  local up_num = tonumber((env.upload or ""):match("([%d%.]+)")) or 0
+  local down_num = tonumber((env.download or ""):match("([%d%.]+)")) or 0
+  local up_color = (up_num == 0) and colors.grey or colors.red
+  local down_color = (down_num == 0) and colors.grey or colors.blue
   wifi_up:set({
     icon = { color = up_color },
     label = {
-      string = env.upload,
+      string = to_mb(env.upload),
       color = up_color
     }
   })
   wifi_down:set({
     icon = { color = down_color },
     label = {
-      string = env.download,
+      string = to_mb(env.download),
       color = down_color
     }
   })
@@ -430,13 +446,17 @@ local function wifi_on_click(env)
     sbar.exec("open 'x-apple.systempreferences:com.apple.wifi-settings-extension' || open 'x-apple.systempreferences:com.apple.Network-Settings.extension'")
     return
   end
-  center_popup.toggle(wifi_bracket, populate_wifi_details)
+  if wifi_popup.is_showing() then
+    wifi_popup.hide()
+  else
+    wifi_popup.show(populate_wifi_details)
+  end
 end
 
 wifi_up:subscribe("mouse.clicked", wifi_on_click)
 wifi_down:subscribe("mouse.clicked", wifi_on_click)
 wifi:subscribe("mouse.clicked", wifi_on_click)
-center_popup.auto_hide(wifi_bracket, wifi)
+wifi_popup.add_close_row()
 
 local function copy_label_to_clipboard(env)
   local label = sbar.query(env.NAME).label.value

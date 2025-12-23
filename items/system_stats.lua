@@ -1,7 +1,7 @@
 local colors = require("colors")
 local settings = require("settings")
 
-sbar.exec("killall system_stats >/dev/null; " .. os.getenv("CONFIG_DIR") .. "/helpers/system_stats/bin/system_stats system_stats_update 0.5")
+sbar.exec("killall system_stats >/dev/null; " .. os.getenv("CONFIG_DIR") .. "/helpers/system_stats/bin/system_stats system_stats_update 1.0")
 
 local cpu_gpu_width = 44
 local mem_width = 28
@@ -46,7 +46,6 @@ local function make_graph(name, icon_text, color, width)
       y_offset = 4,
     },
     padding_right = settings.paddings + 6,
-    click_script = "open -a 'Activity Monitor'",
   })
 end
 
