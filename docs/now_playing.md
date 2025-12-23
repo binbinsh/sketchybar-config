@@ -9,7 +9,7 @@ Helper binary bridging browser media playback and Apple Music control to Sketchy
 
 ## Overview
 
-- Binary: `helpers/event_providers/now_playing/bin/now_playing`
+- Binary: `helpers/now_playing/bin/now_playing`
 - Purpose: emit `media_nowplaying` events carrying track metadata for the bar and provide transport controls.
 
 ## Modes
@@ -19,15 +19,15 @@ Helper binary bridging browser media playback and Apple Music control to Sketchy
 
 ## Install the YouTube Music bridge
 
-1. In Chrome/Brave open `chrome://extensions`, enable Developer Mode, click "Load unpacked", and select `helpers/event_providers/now_playing/extension/`.
+1. In Chrome/Brave open `chrome://extensions`, enable Developer Mode, click "Load unpacked", and select `helpers/now_playing/extension/`.
 2. Copy the Extension ID shown on the card.
 3. Install the native messaging host:
 
 ```bash
-helpers/event_providers/now_playing/extension/install_bridge.sh --ext-id <EXTENSION_ID>
+helpers/now_playing/extension/install_bridge.sh --ext-id <EXTENSION_ID>
 ```
 
-This writes `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sketchybar.nowplaying.json` pointing to `~/.config/sketchybar/helpers/event_providers/now_playing/bin/now_playing` and whitelists your extension ID.
+This writes `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sketchybar.nowplaying.json` pointing to `~/.config/sketchybar/helpers/now_playing/bin/now_playing` and whitelists your extension ID.
 
 4. Restart the browser (`chrome://restart` or `brave://restart`), then play/pause on https://music.youtube.com to confirm events arrive.
 
@@ -35,4 +35,4 @@ This writes `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/co
 
 - Native messaging requires no extra permissions; Apple Music control needs the Music app accessible via AppleScript.
 - If the extension cannot connect, confirm the native host manifest exists (step 3) and check the extension's Service Worker console for errors.
-- Ensure the binary is executable: `chmod +x ~/.config/sketchybar/helpers/event_providers/now_playing/bin/now_playing`.
+- Ensure the binary is executable: `chmod +x ~/.config/sketchybar/helpers/now_playing/bin/now_playing`.

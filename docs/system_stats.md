@@ -27,5 +27,5 @@ If those sensors are not available, the helper reports `-1` and the Lua item ren
 
 ## tuning
 
-- Update interval is controlled in `items/widgets/system_stats.lua` by the `system_stats_update` helper invocation.
-- Graph widths are configured in `items/widgets/system_stats.lua` (`cpu_gpu_width`, `mem_width`).
+- Update interval is controlled in `items/system_stats.lua` by the `system_stats_update` helper invocation.
+- Graph widths are configured in `items/system_stats.lua` (`cpu_gpu_width`, `mem_width`).

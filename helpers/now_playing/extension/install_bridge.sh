@@ -32,7 +32,7 @@ TEMPLATE_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOST_JSON_TEMPLATE="$TEMPLATE_DIR/native_host.json"
 TARGET_JSON="$HOSTS_DIR/com.sketchybar.nowplaying.json"
 
-NOW_PLAYING_BIN="$HOME/.config/sketchybar/helpers/event_providers/now_playing/bin/now_playing"
+NOW_PLAYING_BIN="$HOME/.config/sketchybar/helpers/now_playing/bin/now_playing"
 
 if [[ ! -x "$NOW_PLAYING_BIN" ]]; then
   echo "Building now_playing binary..."
@@ -40,10 +40,9 @@ if [[ ! -x "$NOW_PLAYING_BIN" ]]; then
 fi
 
 echo "Installing native messaging host to: $TARGET_JSON"
-sed -e "s|/Users/USERNAME/.config/sketchybar/helpers/event_providers/now_playing/bin/now_playing|$NOW_PLAYING_BIN|g" \
+sed -e "s|/Users/USERNAME/.config/sketchybar/helpers/now_playing/bin/now_playing|$NOW_PLAYING_BIN|g" \
     -e "s|REPLACE_WITH_EXTENSION_ID|$EXT_ID|g" \
     "$HOST_JSON_TEMPLATE" > "$TARGET_JSON"
 
 echo "Done. Restart your browser (Chrome/Brave) and ensure the extension is loaded."
-
 

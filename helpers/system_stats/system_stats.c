@@ -14,7 +14,7 @@
 #include <unistd.h>
 
 #include "cpu.h"
-#include "../event_providers/sketchybar.h"
+#include "../sketchybar.h"
 
 static int clamp_int(int value, int min, int max) {
   if (value < min) return min;

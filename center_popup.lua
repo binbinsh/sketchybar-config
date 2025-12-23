@@ -1,8 +1,54 @@
 local colors = require("colors")
 local settings = require("settings")
-local popup = require("helpers.popup")
 
-local M = {}
+local M = { _registry = {} }
+
+function M.register(item)
+  if item and item.name then
+    M._registry[item.name] = item
+  end
+  return item
+end
+
+function M.hide(item)
+  if not item then return end
+  item:set({ popup = { drawing = false } })
+end
+
+function M.show(item, on_show)
+  if not item then return end
+  if on_show then on_show() end
+  item:set({ popup = { drawing = true } })
+end
+
+function M.toggle(item, on_show)
+  if not item then return end
+  local drawing = item:query().popup.drawing
+  if drawing == "off" then
+    M.show(item, on_show)
+  else
+    M.hide(item)
+  end
+end
+
+function M.auto_hide(bracket, widget)
+  if not widget then
+    widget = bracket
+  end
+
+  if not bracket then return end
+
+  widget:subscribe("mouse.exited.global", function(_)
+    M.hide(bracket)
+  end)
+
+  bracket:subscribe("front_app_switched", function(_)
+    M.hide(bracket)
+  end)
+  bracket:subscribe("space_change", function(_)
+    M.hide(bracket)
+  end)
+end
 
 function M.create(name, opts)
   opts = opts or {}
@@ -40,8 +86,8 @@ function M.create(name, opts)
     },
   })
 
-  popup.register(anchor)
-  popup.auto_hide(anchor)
+  M.register(anchor)
+  M.auto_hide(anchor)
 
   local position = "popup." .. anchor.name
 
@@ -111,8 +157,8 @@ function M.create(name, opts)
     title_item = title_item,
     meta_item = meta_item,
     body_item = body_item,
-    show = function(on_show) popup.show(anchor, on_show) end,
-    hide = function() popup.hide(anchor) end,
+    show = function(on_show) M.show(anchor, on_show) end,
+    hide = function() M.hide(anchor) end,
     is_showing = function() return anchor:query().popup.drawing == "on" end,
     set_title = function(text) title_item:set({ label = { string = text } }) end,
     set_meta = function(text) meta_item:set({ label = { string = text } }) end,

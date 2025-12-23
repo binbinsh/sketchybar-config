@@ -2,7 +2,7 @@ local colors = require("colors")
 local icons = require("icons")
 local settings = require("settings")
 local app_icons = require("helpers.app_icons")
-local center_popup = require("helpers.center_popup")
+local center_popup = require("center_popup")
 
 local popup_width = 520
 local name_col_w = 190

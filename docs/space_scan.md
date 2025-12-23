@@ -9,7 +9,7 @@ Helper to populate per-space app icons without yabai.
 
 ## How it works
 
-- Binary: `helpers/event_providers/space_scan/bin/space_scan`
+- Binary: `helpers/space_scan/bin/space_scan`
 - Scans on-screen windows via CoreGraphics (layer 0), counts apps per owning process, determines the current Space via private SkyLight APIs, and emits a SketchyBar `space_snapshot` event with `space='<index>' apps='AppA:2|AppB:1|...'`.
 - `items/spaces.lua` subscribes to `space_snapshot` and updates the corresponding `space.<index>` label immediately.
 
@@ -23,7 +23,7 @@ Helper to populate per-space app icons without yabai.
 - Manual run:
 
 ```bash
-$CONFIG_DIR/helpers/event_providers/space_scan/bin/space_scan
+$CONFIG_DIR/helpers/space_scan/bin/space_scan
 ```
 
 ## Limitations

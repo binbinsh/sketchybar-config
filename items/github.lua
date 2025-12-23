@@ -1,7 +1,7 @@
 local colors = require("colors")
 local settings = require("settings")
 local app_icons = require("helpers.app_icons")
-local popup = require("helpers.popup")
+local center_popup = require("center_popup")
 
 local cache_dir = os.getenv("HOME") .. "/.cache/sketchybar"
 local last_seen_path = cache_dir .. "/github_last_seen.txt"
@@ -33,7 +33,7 @@ local github = sbar.add("item", "widgets.github", {
   popup = { align = "center" },
 })
 
-popup.register(github)
+center_popup.register(github)
 
 local popup_width = 260
 local popup_pos = "popup." .. github.name
@@ -446,7 +446,7 @@ github:subscribe("mouse.clicked", function(env)
     return
   end
 
-  popup.toggle(github, function()
+  center_popup.toggle(github, function()
     update_github()
   end)
 end)
@@ -460,7 +460,7 @@ action_open_notifications:subscribe("mouse.clicked", function(_)
   sbar.exec("/bin/zsh -lc 'open https://github.com/notifications'")
 end)
 
-popup.auto_hide(github)
+center_popup.auto_hide(github)
 
 github:set({ update_freq = 120 })
 github:subscribe("routine", function(_) update_github() end)

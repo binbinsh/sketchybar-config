@@ -1,7 +1,0 @@
-require("items.widgets.system_stats")
-require("items.widgets.volume")
-require("items.widgets.wifi")
-require("items.widgets.weather")
-require("items.widgets.github")
-require("items.widgets.wechat")
-require("items.widgets.shortcuts")

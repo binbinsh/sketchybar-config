@@ -8,8 +8,9 @@ Lightweight app to fetch current coordinates for the Weather widget.
 
 ## What it does
 
-- App path: `helpers/event_providers/location/bin/SketchyBarLocationHelper.app`.
-- Invoked by `items/widgets/weather.lua` via `open -W ~/.config/sketchybar/helpers/event_providers/location/bin/SketchyBarLocationHelper.app`.
+- App path: `helpers/location/bin/SketchyBarLocationHelper.app`.
+- Invoked by `items/weather.lua` via `open -W ~/.config/sketchybar/helpers/location/bin/SketchyBarLocationHelper.app`.
+- Build from root with `make -C helpers`, or from `helpers/location` with `make`; set `CODESIGN_ID` to your signing identity (defaults to ad-hoc `-`).
 - Requests one-shot location, writes a cache line to `~/.cache/sketchybar/location.txt` as `ts|lat|lon|label`, then the widget reverse-geocodes and queries OpenWeather.
 
 ## Permissions

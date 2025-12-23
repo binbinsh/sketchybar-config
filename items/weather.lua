@@ -1,6 +1,6 @@
 local colors = require("colors")
 local settings = require("settings")
-local popup = require("helpers.popup")
+local center_popup = require("center_popup")
 local icons = require("icons")
 
 local cache_dir = os.getenv("HOME") .. "/.cache/sketchybar"
@@ -187,7 +187,7 @@ local function resolve_location(callback)
   end
 
   -- Launch the .app (blocks until exit), then read cache file directly
-  local app_bundle = os.getenv("HOME") .. "/.config/sketchybar/helpers/event_providers/location/bin/SketchyBarLocationHelper.app"
+  local app_bundle = os.getenv("HOME") .. "/.config/sketchybar/helpers/location/bin/SketchyBarLocationHelper.app"
   local cmd = "/bin/zsh -lc 'open -W " .. app_bundle .. " >/dev/null 2>&1'"
   exec(cmd, function(_)
     local raw = read_file(location_cache)
@@ -238,7 +238,7 @@ local weather_bracket = sbar.add("bracket", "widgets.weather.bracket", {
   popup = { align = "center" }
 })
 
-popup.register(weather_bracket)
+center_popup.register(weather_bracket)
 
 sbar.add("item", { position = "right", width = settings.group_paddings })
 
@@ -469,7 +469,7 @@ local function on_click(env)
     return
   end
   -- left click: toggle popup; fill contents on show
-  popup.toggle(weather_bracket, update_popup_contents)
+  center_popup.toggle(weather_bracket, update_popup_contents)
 end
 
 weather:subscribe("mouse.clicked", on_click)
@@ -490,7 +490,7 @@ title_item:subscribe("mouse.clicked", function(_)
     refresh(true)
   end)
 end)
-popup.auto_hide(weather_bracket, weather)
+center_popup.auto_hide(weather_bracket, weather)
 
 -- Periodic updates and initial paint (hourly)
 weather:set({ updates = true, update_freq = weather_cache_ttl })

@@ -52,4 +52,4 @@ brew install --cask hammerspoon
 
 echo "Configuring Hammerspoon..."
 mkdir -p "$HOME/.hammerspoon"
-ln -sf "$SCRIPT_DIR/hammerspoon_init.lua" "$HOME/.hammerspoon/init.lua"
+ln -sf "$SCRIPT_DIR/docs/hammerspoon_init.lua" "$HOME/.hammerspoon/init.lua"

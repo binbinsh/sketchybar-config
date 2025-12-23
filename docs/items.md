@@ -1,13 +1,26 @@
-# Widgets & Integrations
+# Items
 
-Quick reference for the app integrations and interactive widgets in this directory.
+Detailed reference for items and widgets defined in `items/`.
 
+- [Overview](#overview)
+- [Widgets and Integrations](#widgets-and-integrations)
 - [Shortcuts](#shortcuts-shortcutslua)
 - [Volume](#volume-volumelua)
 - [GitHub](#github-githublua)
 - [System Stats](#system-stats-system_statslua)
 - [Weather](#weather-weatherlua)
 - [Now Playing](#now-playing-now_playinglua)
+- [WeChat](#wechat-wechatlua)
+
+## Overview
+
+- Front App (`front_app.lua`): shows the active app name; click toggles the `menus` and `spaces` brackets via the `swap_menus_and_spaces` event.
+- Pomodoro (`pomodoro.lua`): minimal timer; left-click start/pause, right-click resets the current phase; auto-advances with notifications.
+- Widgets: app integrations and interactive widgets are documented below.
+
+## Widgets and Integrations
+
+Quick reference for the app integrations and interactive widgets in this directory.
 
 ## Shortcuts (`shortcuts.lua`)
 
@@ -40,7 +53,7 @@ Quick reference for the app integrations and interactive widgets in this directo
 
 - Uses OpenWeather One Call API 3.0 for current conditions; shows condition, temperature, feels like, humidity, wind, pressure, time zone, sunrise, and sunset.
 - Left-click toggles a centered popup titled with your location (`<place>` lat, lon) and a refresh affordance; click the title to refresh immediately; right-click opens the OpenWeather map for your coordinates (falls back to the macOS Weather app).
-- Auto-refreshes hourly; coordinates come from the location helper (see `../../helpers/event_providers/location/README.md`) and are reverse-geocoded via OpenStreetMap.
+- Auto-refreshes hourly; coordinates come from the location helper (see `location.md`) and are reverse-geocoded via OpenStreetMap.
 - Setup: register an API key at https://openweathermap.org/api (free tier is 1,000 calls/day), then store it in Keychain:
 
 ```bash
@@ -52,4 +65,4 @@ The widget reads it with `security find-generic-password -a "$USER" -s OPENWEATH
 ## Now Playing (`now_playing.lua`)
 
 - Displays track metadata (title, artist, album) for Apple Music, Spotify, and YouTube Music (via the browser bridge).
-- See `../../helpers/event_providers/now_playing/README.md` for the Native Messaging bridge and installation steps.
+- See `now_playing.md` for the Native Messaging bridge and installation steps.

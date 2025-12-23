@@ -6,7 +6,7 @@ local whitelist = { ["Spotify"] = true,
                     ["YouTube Music"] = true };
 
 -- Start native now playing provider: now_playing <event-name>
-sbar.exec("killall now_playing >/dev/null 2>&1; $CONFIG_DIR/helpers/event_providers/now_playing/bin/now_playing media_nowplaying &")
+sbar.exec("killall now_playing >/dev/null 2>&1; $CONFIG_DIR/helpers/now_playing/bin/now_playing media_nowplaying &")
 
 -- Ensure event exists for manual triggers and extension bridge
 sbar.add("event", "media_nowplaying")
@@ -65,19 +65,19 @@ sbar.add("item", {
   position = "popup." .. media_cover.name,
   icon = { string = icons.media.back },
   label = { drawing = false },
-  click_script = "$CONFIG_DIR/helpers/event_providers/now_playing/bin/now_playing previous",
+  click_script = "$CONFIG_DIR/helpers/now_playing/bin/now_playing previous",
 })
 sbar.add("item", {
   position = "popup." .. media_cover.name,
   icon = { string = icons.media.play_pause },
   label = { drawing = false },
-  click_script = "$CONFIG_DIR/helpers/event_providers/now_playing/bin/now_playing toggle",
+  click_script = "$CONFIG_DIR/helpers/now_playing/bin/now_playing toggle",
 })
 sbar.add("item", {
   position = "popup." .. media_cover.name,
   icon = { string = icons.media.forward },
   label = { drawing = false },
-  click_script = "$CONFIG_DIR/helpers/event_providers/now_playing/bin/now_playing next",
+  click_script = "$CONFIG_DIR/helpers/now_playing/bin/now_playing next",
 })
 
 local interrupt = 0

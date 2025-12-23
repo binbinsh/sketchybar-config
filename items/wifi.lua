@@ -1,11 +1,11 @@
 local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
-local popup = require("helpers.popup")
+local center_popup = require("center_popup")
 
 -- Execute the event provider binary which provides the event "network_update"
 -- for the network interface "en0", which is fired every 2.0 seconds.
-sbar.exec("killall network_load >/dev/null; $CONFIG_DIR/helpers/event_providers/network_load/bin/network_load en0 network_update 2.0")
+sbar.exec("killall network_load >/dev/null; $CONFIG_DIR/helpers/network_load/bin/network_load en0 network_update 2.0")
 
 local popup_width = 250
 
@@ -73,7 +73,7 @@ local wifi_bracket = sbar.add("bracket", "widgets.wifi.bracket", {
   popup = { align = "center", height = 30 }
 })
 
-popup.register(wifi_bracket)
+center_popup.register(wifi_bracket)
 
 local function trim(s)
   if not s then return s end
@@ -430,13 +430,13 @@ local function wifi_on_click(env)
     sbar.exec("open 'x-apple.systempreferences:com.apple.wifi-settings-extension' || open 'x-apple.systempreferences:com.apple.Network-Settings.extension'")
     return
   end
-  popup.toggle(wifi_bracket, populate_wifi_details)
+  center_popup.toggle(wifi_bracket, populate_wifi_details)
 end
 
 wifi_up:subscribe("mouse.clicked", wifi_on_click)
 wifi_down:subscribe("mouse.clicked", wifi_on_click)
 wifi:subscribe("mouse.clicked", wifi_on_click)
-popup.auto_hide(wifi_bracket, wifi)
+center_popup.auto_hide(wifi_bracket, wifi)
 
 local function copy_label_to_clipboard(env)
   local label = sbar.query(env.NAME).label.value

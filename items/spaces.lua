@@ -1,7 +1,7 @@
 local colors = require("colors")
 local settings = require("settings")
 local app_icons = require("helpers.app_icons")
-local center_popup = require("helpers.center_popup")
+local center_popup = require("center_popup")
 
 local spaces = {}
 
@@ -184,7 +184,7 @@ end)
 
 -- On space change, rescan once to refresh labels for all spaces
 space_window_observer:subscribe("space_change", function(_)
-  sbar.exec("$CONFIG_DIR/helpers/event_providers/space_scan/bin/space_scan")
+  sbar.exec("$CONFIG_DIR/helpers/space_scan/bin/space_scan")
 end)
 
 -- Initialize labels on startup
@@ -195,4 +195,4 @@ for i = 1, 10 do
 end
 
 -- Kick off initial snapshot
-sbar.exec("$CONFIG_DIR/helpers/event_providers/space_scan/bin/space_scan")
+sbar.exec("$CONFIG_DIR/helpers/space_scan/bin/space_scan")
