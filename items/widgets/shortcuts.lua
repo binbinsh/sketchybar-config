@@ -1,11 +1,11 @@
 local colors = require("colors")
 local icons = require("icons")
 local settings = require("settings")
-local popup = require("helpers.popup")
 local app_icons = require("helpers.app_icons")
+local center_popup = require("helpers.center_popup")
 
-local popup_width = 360
-local name_col_w = 150
+local popup_width = 520
+local name_col_w = 190
 local value_col_w = popup_width - name_col_w
 
 local name_font = {
@@ -20,34 +20,18 @@ local value_font = {
   size = 12.0,
 }
 
-local shortcuts = sbar.add("item", "widgets.shortcuts", {
-  position = "right",
-  icon = {
-    string = icons.gear,
-    font = {
-      family = settings.font.icons,
-      style = settings.font.style_map["Regular"],
-      size = 16.0,
-    },
-    color = colors.white,
-  },
-  label = { drawing = false },
-  background = { drawing = false },
-  padding_left = settings.paddings,
-  padding_right = settings.paddings,
-  updates = true,
-})
-
-local shortcuts_bracket = sbar.add("bracket", "widgets.shortcuts.bracket", {
-  shortcuts.name,
-}, {
-  background = { drawing = false },
-  popup = { align = "center" },
-})
-
-local popup_pos = "popup." .. shortcuts_bracket.name
-
-popup.register(shortcuts_bracket)
+local function app_icon(app_name, fallback, size)
+  local icon = app_icons[app_name]
+  local icon_size = size or 16.0
+  if icon and icon ~= "" then
+    return icon, "sketchybar-app-font:Regular:" .. tostring(icon_size)
+  end
+  return fallback, {
+    family = settings.font.icons,
+    style = settings.font.style_map["Regular"],
+    size = icon_size,
+  }
+end
 
 local function only_left_click(fn)
   return function(env)
@@ -56,134 +40,162 @@ local function only_left_click(fn)
   end
 end
 
-local function add_row(name, value, opts)
-  opts = opts or {}
-  local item = sbar.add("item", {
-    position = popup_pos,
+local function make_popup(id, title, meta)
+  local popup = center_popup.create("shortcuts." .. id, {
     width = popup_width,
-    drawing = opts.drawing ~= false,
-    icon = {
-      align = "left",
-      string = name or "",
-      width = opts.name_width or name_col_w,
-      font = opts.name_font or name_font,
-    },
-    label = {
-      align = opts.label_align or "left",
-      string = value or "",
-      width = opts.value_width or value_col_w,
-      font = opts.label_font or value_font,
-      drawing = opts.label_drawing ~= false,
-    },
+    height = 1,
+    y_offset = 160,
+    title = title,
+    meta = meta or "",
+    popup_height = 26,
   })
 
-  if opts.on_click then
-    item:subscribe("mouse.clicked", only_left_click(opts.on_click))
+  popup.body_item:set({ drawing = false })
+
+  local position = popup.position
+
+  local function add_row(name, value, opts)
+    opts = opts or {}
+    local item = sbar.add("item", {
+      position = position,
+      width = popup_width,
+      drawing = opts.drawing ~= false,
+      icon = {
+        align = "left",
+        string = name or "",
+        width = opts.name_width or name_col_w,
+        font = opts.name_font or name_font,
+      },
+      label = {
+        align = opts.label_align or "left",
+        string = value or "",
+        width = opts.value_width or value_col_w,
+        font = opts.label_font or value_font,
+        drawing = opts.label_drawing ~= false,
+      },
+    })
+
+    if opts.on_click then
+      item:subscribe("mouse.clicked", only_left_click(opts.on_click))
+    end
+
+    return item
   end
+
+  local function add_action_row(text, on_click)
+    return add_row(text, "", {
+      name_width = popup_width,
+      value_width = 0,
+      label_drawing = false,
+      name_font = {
+        family = settings.font.text,
+        style = settings.font.style_map["Semibold"],
+        size = 12.5,
+      },
+      on_click = on_click,
+    })
+  end
+
+  return {
+    popup = popup,
+    position = position,
+    add_row = add_row,
+    add_action_row = add_action_row,
+  }
+end
+
+local function toggle_popup(popup, on_show)
+  if popup.is_showing() then
+    popup.hide()
+    return
+  end
+  popup.show(on_show)
+end
+
+local function add_icon_item(key, icon_string, icon_font, popup, on_show, opts)
+  opts = opts or {}
+  local item = sbar.add("item", "widgets.shortcuts." .. key, {
+    position = "right",
+    icon = {
+      string = icon_string,
+      font = icon_font,
+      color = colors.white,
+    },
+    label = opts.label or { drawing = false },
+    background = { drawing = false },
+    padding_left = settings.paddings,
+    padding_right = settings.paddings,
+    updates = true,
+  })
+
+  local function normal_color()
+    if opts.icon_color then
+      return opts.icon_color()
+    end
+    return colors.white
+  end
+
+  item:subscribe("mouse.entered", function(_)
+    item:set({ icon = { color = colors.blue } })
+  end)
+
+  item:subscribe("mouse.exited", function(_)
+    item:set({ icon = { color = normal_color() } })
+  end)
+
+  item:subscribe("mouse.clicked", only_left_click(function()
+    toggle_popup(popup, on_show)
+  end))
 
   return item
 end
 
-local function add_action_row(text, on_click)
-  return add_row(text, "", {
-    name_width = popup_width,
-    value_width = 0,
-    label_drawing = false,
-    name_font = {
-      family = settings.font.text,
-      style = settings.font.style_map["Semibold"],
-      size = 12.5,
-    },
-    on_click = on_click,
-  })
-end
+local clipboard_popup = make_popup("clipboard", "Clipboard", "Raycast Clipboard History")
 
-local function hide_popup()
-  popup.hide(shortcuts_bracket)
-end
-
-local function trim_newline(s)
-  return (s or ""):gsub("\r", ""):gsub("\n$", "")
-end
-
-local refresh_all
-
-shortcuts:subscribe("mouse.entered", function(_)
-  shortcuts:set({ icon = { color = colors.blue } })
-end)
-
-shortcuts:subscribe("mouse.exited", function(_)
-  shortcuts:set({ icon = { color = colors.white } })
-end)
-
-shortcuts:subscribe("mouse.clicked", function(env)
-  if env.BUTTON ~= "left" then return end
-  popup.toggle(shortcuts_bracket, refresh_all)
-end)
-
-local title_item = sbar.add("item", {
-  position = popup_pos,
-  width = popup_width,
-  align = "center",
-  icon = {
-    string = icons.gear,
-    font = { style = settings.font.style_map["Bold"] },
-  },
-  label = {
-    string = "Shortcuts",
-    font = { size = 15, style = settings.font.style_map["Bold"] },
-    align = "center",
-  },
-  background = { height = 2, color = colors.grey, y_offset = -15 },
-})
-
-add_row("Clipboard", "History (Raycast)", {
+clipboard_popup.add_row("History", "Open Raycast", {
   on_click = function()
-    hide_popup()
+    clipboard_popup.popup.hide()
     sbar.exec("open 'raycast://extensions/raycast/clipboard-history/clipboard-history'")
   end,
 })
 
-add_row("Clipboard", "Ask Clipboard", {
+clipboard_popup.add_row("Ask Clipboard", "Open Raycast", {
   on_click = function()
-    hide_popup()
+    clipboard_popup.popup.hide()
     sbar.exec("open 'raycast://extensions/raycast/clipboard-history/ask-clipboard'")
   end,
 })
 
-add_row("Dictionary", "Instant translate", {
+local dictionary_popup = make_popup("dictionary", "Dictionary", "Raycast Translate")
+
+dictionary_popup.add_row("Instant translate", "Open", {
   on_click = function()
-    hide_popup()
+    dictionary_popup.popup.hide()
     sbar.exec("open 'raycast://extensions/gebeto/translate/instant-translate-view'")
   end,
 })
 
-add_row("Dictionary", "Quick translate", {
+dictionary_popup.add_row("Quick translate", "Open", {
   on_click = function()
-    hide_popup()
+    dictionary_popup.popup.hide()
     sbar.exec("open 'raycast://extensions/gebeto/translate/quick-translate'")
   end,
 })
 
--- LM Studio section
+local lm_popup = make_popup("lm_studio", "LM Studio", "Models and server")
+
+lm_popup.add_action_row("Open app", function()
+  lm_popup.popup.hide()
+  sbar.exec("open -a 'LM Studio'")
+end)
+
 local lm_max_rows = 12
 local lm_rows = {}
 local lm_actions = {}
 
-local lm_icon = app_icons["LM Studio"] or ""
-local lm_icon_font = "sketchybar-app-font:Regular:16.0"
-if lm_icon == "" then
-  lm_icon = icons.lm_studio or ""
-  lm_icon_font = {
-    family = settings.font.icons,
-    style = settings.font.style_map["Regular"],
-    size = 16.0,
-  }
-end
-
 for i = 1, lm_max_rows, 1 do
   lm_rows[i] = sbar.add("item", {
-    position = popup_pos,
+    position = lm_popup.position,
     drawing = false,
     padding_left = settings.paddings,
     padding_right = settings.paddings,
@@ -256,43 +268,14 @@ local function populate_lm_studio()
     lm_actions[i] = nil
   end
 
-  local header_idx = 1
-  local server_idx = 2
-  local port_idx = 3
-  local status_idx = 4
-  local context_idx = 5
-  local ttl_idx = 6
-  local loaded_idx = 7
-  local toggle_idx = 8
-  local models_start_idx = 9
-
-  local function set_header()
-    lm_rows[header_idx]:set({
-      drawing = true,
-      icon = {
-        drawing = true,
-        string = lm_icon,
-        font = lm_icon_font,
-      },
-      width = popup_width,
-      align = "center",
-      label = {
-        string = "LM Studio",
-        font = { size = 15, style = settings.font.style_map["Bold"] },
-        align = "center",
-      },
-      background = {
-        height = 2,
-        color = colors.grey,
-        y_offset = -15,
-      },
-    })
-
-    lm_actions[header_idx] = function()
-      hide_popup()
-      sbar.exec("open -a 'LM Studio'")
-    end
-  end
+  local server_idx = 1
+  local port_idx = 2
+  local status_idx = 3
+  local context_idx = 4
+  local ttl_idx = 5
+  local loaded_idx = 6
+  local toggle_idx = 7
+  local models_start_idx = 8
 
   local function set_kv(idx, key, value)
     lm_rows[idx]:set({
@@ -312,8 +295,6 @@ local function populate_lm_studio()
     })
   end
 
-  set_header()
-
   local lms_prefix = [[LMS="$(command -v lms 2>/dev/null || { [ -x "$HOME/.lmstudio/bin/lms" ] && printf "%s" "$HOME/.lmstudio/bin/lms"; })"; ]]
 
   sbar.exec([[ /bin/zsh -lc ']] .. lms_prefix .. [[${LMS} status 2>/dev/null' ]], function(status_out)
@@ -330,7 +311,7 @@ local function populate_lm_studio()
       label = toggle_label,
     })
     lm_actions[toggle_idx] = function()
-      hide_popup()
+      lm_popup.popup.hide()
       sbar.exec("/bin/zsh -lc '" .. lms_prefix .. toggle_cmd .. "'")
     end
   end)
@@ -428,7 +409,7 @@ local function populate_lm_studio()
         local model_name = e.name
         local base_name = base
         lm_actions[row_index] = function()
-          hide_popup()
+          lm_popup.popup.hide()
           sbar.exec("/bin/zsh -lc '" .. lms_prefix
             .. 'nohup ${LMS} server start >/dev/null 2>&1 &; '
             .. '${LMS} unload --all; '
@@ -444,7 +425,7 @@ local function populate_lm_studio()
           label = "Install lms CLI: ~/.lmstudio/bin/lms bootstrap",
         })
         lm_actions[models_start_idx] = function()
-          hide_popup()
+          lm_popup.popup.hide()
           sbar.exec("/bin/zsh -lc '" .. lms_prefix .. "${LMS} bootstrap || true'")
         end
       end
@@ -455,30 +436,34 @@ local function populate_lm_studio()
         label = "Unload all models",
       })
       lm_actions[lm_max_rows] = function()
-        hide_popup()
+        lm_popup.popup.hide()
         sbar.exec("/bin/zsh -lc '" .. lms_prefix .. "${LMS} unload --all'")
       end
     end)
   end)
 end
 
-add_row("1Password", "Quick Access", {
-  on_click = function()
-    hide_popup()
-    sbar.exec("osascript -e 'tell application \"System Events\" to key code 49 using {command down, shift down}'")
-  end,
-})
+local onepassword_popup = make_popup("onepassword", "1Password", "Quick Access")
 
-add_row("1Password", "Open app", {
-  on_click = function()
-    hide_popup()
-    sbar.exec("open -a '1Password'")
-  end,
-})
+onepassword_popup.add_action_row("Quick Access", function()
+  onepassword_popup.popup.hide()
+  sbar.exec("osascript -e 'tell application \"System Events\" to key code 49 using {command down, shift down}'")
+end)
 
-local qx_ip = add_row("Public IP", "...", { label_align = "right" })
-local qx_location = add_row("Location", "...", { label_align = "right" })
-local qx_isp = add_row("ISP", "...", { label_align = "right" })
+onepassword_popup.add_action_row("Open app", function()
+  onepassword_popup.popup.hide()
+  sbar.exec("open -a '1Password'")
+end)
+
+local qx_popup = make_popup("quantumultx", "Quantumult X", "Public IP info")
+
+local qx_ip = qx_popup.add_row("Public IP", "...", { label_align = "right" })
+local qx_location = qx_popup.add_row("Location", "...", { label_align = "right" })
+local qx_isp = qx_popup.add_row("ISP", "...", { label_align = "right" })
+
+local function trim_newline(s)
+  return (s or ""):gsub("\r", ""):gsub("\n$", "")
+end
 
 local function update_ipinfo()
   qx_ip:set({ label = "..." })
@@ -505,22 +490,20 @@ local function update_ipinfo()
   end)
 end
 
-add_row("Quantumult X", "Open app", {
-  on_click = function()
-    hide_popup()
-    sbar.exec("open -a 'Quantumult X'")
-  end,
-})
+qx_popup.add_action_row("Open app", function()
+  qx_popup.popup.hide()
+  sbar.exec("open -a 'Quantumult X'")
+end)
 
-add_row("Quantumult X", "Refresh info", {
-  on_click = function()
-    update_ipinfo()
-  end,
-})
+qx_popup.add_action_row("Refresh info", function()
+  update_ipinfo()
+end)
 
-local synergy_main = add_row("Synergy Main", "-", { label_align = "right" })
-local synergy_server = add_row("Synergy Server", "-", { label_align = "right" })
-local synergy_client = add_row("Synergy Client", "-", { label_align = "right" })
+local synergy_popup = make_popup("synergy", "Synergy", "Status")
+
+local synergy_main = synergy_popup.add_row("Main", "-", { label_align = "right" })
+local synergy_server = synergy_popup.add_row("Server", "-", { label_align = "right" })
+local synergy_client = synergy_popup.add_row("Client", "-", { label_align = "right" })
 
 local check_cmd = [=[/bin/zsh -lc '
 main="STOPPED"
@@ -561,12 +544,12 @@ end tell
 APPLESCRIPT
 ']=]
 
-add_row("Synergy", "Open app", {
-  on_click = function()
-    hide_popup()
-    sbar.exec(open_main_cmd)
-  end,
-})
+synergy_popup.add_action_row("Open app", function()
+  synergy_popup.popup.hide()
+  sbar.exec(open_main_cmd)
+end)
+
+local tm_popup = make_popup("time_machine", "Time Machine", "Backup status")
 
 local function build_jxa_cmd(js_lines, argv)
   local parts = {}
@@ -609,8 +592,8 @@ local function exec(cmd, cb)
   sbar.exec(cmd, cb)
 end
 
-local tm_status_row = add_row("Status", "-", { label_align = "right" })
-local tm_latest_row = add_row("Latest", "-", { label_align = "right" })
+local tm_status_row = tm_popup.add_row("Status", "-", { label_align = "right" })
+local tm_latest_row = tm_popup.add_row("Latest", "-", { label_align = "right" })
 
 local function populate_tm_details()
   local status_cmd = [[/bin/zsh -lc '
@@ -679,44 +662,44 @@ local function populate_tm_details()
   end)
 end
 
-add_row("Time Machine", "Open settings", {
-  on_click = function()
-    hide_popup()
-    sbar.exec("open 'x-apple.systempreferences:com.apple.TimeMachine-Settings.extension'")
-  end,
-})
+tm_popup.add_action_row("Open settings", function()
+  tm_popup.popup.hide()
+  sbar.exec("open 'x-apple.systempreferences:com.apple.TimeMachine-Settings.extension'")
+end)
 
-add_action_row("Start backup", function()
+tm_popup.add_action_row("Start backup", function()
   exec(jxa_admin_cmd("tmutil startbackup"), function(_)
     sbar.delay(0.5, function() populate_tm_details() end)
   end)
 end)
 
-add_action_row("Stop backup", function()
+tm_popup.add_action_row("Stop backup", function()
   exec(jxa_admin_cmd("tmutil stopbackup"), function(_)
     sbar.delay(0.5, function() populate_tm_details() end)
   end)
 end)
 
-add_action_row("Open destination", function()
+tm_popup.add_action_row("Open destination", function()
   local cmd = [[/bin/zsh -lc 'tmutil destinationinfo 2>/dev/null | grep "^URL" | head -n1 | cut -d: -f2- | sed -E "s/^ +//; s/ +$//"']]
   exec(cmd, function(url)
     url = (url or ""):gsub("\n$", "")
     if url ~= "" then
-      hide_popup()
+      tm_popup.popup.hide()
       exec("/bin/zsh -lc 'open \"" .. url .. "\"'", function(_) end)
     else
-      hide_popup()
+      tm_popup.popup.hide()
       exec("/bin/zsh -lc 'open " ..
         "\"x-apple.systempreferences:com.apple.TimeMachine-Settings.extension\" || open -a \"Time Machine\"'", function(_) end)
     end
   end)
 end)
 
-add_action_row("Open Time Machine", function()
-  hide_popup()
+tm_popup.add_action_row("Open Time Machine", function()
+  tm_popup.popup.hide()
   exec("/bin/zsh -lc 'open -a \"Time Machine\"'", function(_) end)
 end)
+
+local ubuntu_popup = make_popup("ubuntu", "Ubuntu", "Remote metrics")
 
 local target_path = os.getenv("HOME") .. "/.config/sketchybar/ubuntu_target"
 local ubuntu_enabled = false
@@ -750,7 +733,6 @@ local function shorten_gpu_name(name)
   return name
 end
 
-local ubuntu_title
 local load_item
 local cpu_item
 local mem_item
@@ -760,36 +742,29 @@ local gpu_rows
 local update_ubuntu
 
 if ubuntu_enabled then
-  ubuntu_title = add_row("Ubuntu " .. short_host(ssh_target) .. " " .. icons.refresh, "", {
-    name_width = popup_width,
-    value_width = 0,
-    label_drawing = false,
-    name_font = {
-      family = settings.font.text,
-      style = settings.font.style_map["Bold"],
-      size = 13.0,
-    },
-    on_click = function()
-      if update_ubuntu then update_ubuntu() end
-    end,
-  })
+  ubuntu_popup.popup.set_meta("Host: " .. short_host(ssh_target))
 
-  load_item = add_row("Load", "-", { label_align = "right" })
-  cpu_item = add_row("CPU", "-", { label_align = "right" })
-  mem_item = add_row("Memory", "-", { label_align = "right" })
-  home_item = add_row("/home", "-", { label_align = "right" })
+  ubuntu_popup.add_action_row("Refresh metrics", function()
+    if update_ubuntu then update_ubuntu() end
+  end)
+
+  load_item = ubuntu_popup.add_row("Load", "-", { label_align = "right" })
+  cpu_item = ubuntu_popup.add_row("CPU", "-", { label_align = "right" })
+  mem_item = ubuntu_popup.add_row("Memory", "-", { label_align = "right" })
+  home_item = ubuntu_popup.add_row("/home", "-", { label_align = "right" })
 
   nvme_rows = {}
   for i = 1, 8 do
-    nvme_rows[i] = add_row("", "", { drawing = false, label_align = "right" })
+    nvme_rows[i] = ubuntu_popup.add_row("", "", { drawing = false, label_align = "right" })
   end
 
   gpu_rows = {}
   for i = 1, 6 do
-    gpu_rows[i] = add_row("", "", { drawing = false, label_align = "right" })
+    gpu_rows[i] = ubuntu_popup.add_row("", "", { drawing = false, label_align = "right" })
   end
 else
-  add_row("Ubuntu", "No target configured")
+  ubuntu_popup.popup.set_meta("No target configured")
+  ubuntu_popup.add_row("Status", "No target configured")
 end
 
 local function parse_ssh_output(out)
@@ -998,6 +973,63 @@ if ubuntu_enabled then
   end
 end
 
+local wechat_popup = make_popup("wechat", "WeChat", "Unread badge")
+
+local wechat_unread = wechat_popup.add_row("Unread", "-", { label_align = "right" })
+
+wechat_popup.add_action_row("Open app", function()
+  wechat_popup.popup.hide()
+  sbar.exec("/bin/zsh -lc 'open -a WeChat || open -b com.tencent.xinWeChat'")
+end)
+
+local clipboard_icon = icons.clipboard
+local dictionary_icon = icons.translate
+local lm_icon, lm_font = app_icon("LM Studio", icons.lm_studio, 16.0)
+local onepassword_icon, onepassword_font = app_icon("1Password", icons.onepassword, 16.0)
+local qx_icon, qx_font = app_icon("Quantumult X", icons.quantumultx, 16.0)
+local synergy_icon = icons.synergy
+local time_machine_icon = icons.time_machine
+local ubuntu_icon = icons.ubuntu
+local wechat_icon, wechat_font = app_icon("WeChat", icons.clipboard, 19.0)
+
+local icon_font = {
+  family = settings.font.icons,
+  style = settings.font.style_map["Regular"],
+  size = 16.0,
+}
+
+add_icon_item("clipboard", clipboard_icon, icon_font, clipboard_popup.popup, nil)
+add_icon_item("dictionary", dictionary_icon, icon_font, dictionary_popup.popup, nil)
+add_icon_item("lm_studio", lm_icon, lm_font, lm_popup.popup, populate_lm_studio)
+add_icon_item("onepassword", onepassword_icon, onepassword_font, onepassword_popup.popup, nil)
+add_icon_item("quantumultx", qx_icon, qx_font, qx_popup.popup, update_ipinfo)
+add_icon_item("synergy", synergy_icon, icon_font, synergy_popup.popup, populate_synergy)
+add_icon_item("time_machine", time_machine_icon, icon_font, tm_popup.popup, populate_tm_details)
+add_icon_item("ubuntu", ubuntu_icon, icon_font, ubuntu_popup.popup, function()
+  if update_ubuntu then update_ubuntu() end
+end)
+
+local wechat_icon_color = colors.white
+local wechat_item
+local update_wechat_badge
+
+wechat_item = add_icon_item("wechat", wechat_icon, wechat_font, wechat_popup.popup, function()
+  if update_wechat_badge then update_wechat_badge() end
+end, {
+  label = {
+    drawing = true,
+    string = "",
+    font = {
+      family = settings.font.numbers,
+      style = settings.font.style_map["Bold"],
+    },
+    color = colors.white,
+  },
+  icon_color = function()
+    return wechat_icon_color
+  end,
+})
+
 local function jxa_dock_badge_for(app_name)
   local js_lines = {
     "function run(argv) {",
@@ -1012,7 +1044,7 @@ local function jxa_dock_badge_for(app_name)
     "      var t = tiles[i];",
     "      var nm = '';",
     "      try { nm = String(t.name()); } catch (e) {}",
-    "      if (nm.indexOf('WeChat') !== -1 || nm.indexOf('微信') !== -1) {",
+    "      if (nm.indexOf('WeChat') !== -1 || nm.indexOf('\\u5fae\\u4fe1') !== -1) {",
     "        try {",
     "          var v = t.attributes.byName('AXStatusLabel').value();",
     "          var s = String(v);",
@@ -1032,38 +1064,35 @@ local function jxa_dock_badge_for(app_name)
   return "/usr/bin/osascript -l JavaScript " .. table.concat(parts, " ") .. " -- " .. string.format("%q", app_name)
 end
 
-local wechat_unread = add_row("WeChat Unread", "-", { label_align = "right" })
-
-local function update_wechat_badge()
+update_wechat_badge = function()
   local cmd = jxa_dock_badge_for("WeChat")
   sbar.exec(cmd, function(out)
     local badge = (out or ""):gsub("\n$", ""):gsub("^%s+", ""):gsub("%s+$", "")
     if badge == "" then
+      wechat_icon_color = colors.white
+      wechat_item:set({
+        label = { drawing = false, string = "" },
+        icon = { color = wechat_icon_color },
+      })
       wechat_unread:set({ label = { string = "None", color = colors.white } })
     else
+      wechat_icon_color = colors.green
+      wechat_item:set({
+        label = { drawing = true, string = badge },
+        icon = { color = wechat_icon_color },
+      })
       wechat_unread:set({ label = { string = badge, color = colors.green } })
     end
   end)
 end
 
-add_row("WeChat", "Open app", {
-  on_click = function()
-    hide_popup()
-    sbar.exec("/bin/zsh -lc 'open -a WeChat || open -b com.tencent.xinWeChat || open -a \\\"WeChat\\\"'")
-  end,
-})
+update_wechat_badge()
 
-refresh_all = function()
-  populate_lm_studio()
-  update_ipinfo()
-  populate_synergy()
-  populate_tm_details()
-  update_wechat_badge()
-  if ubuntu_enabled and update_ubuntu then update_ubuntu() end
-end
-
-shortcuts:subscribe({ "front_app_switched", "system_woke" }, function(_)
+wechat_item:set({ update_freq = 10 })
+wechat_item:subscribe("routine", function(_)
   update_wechat_badge()
 end)
 
-popup.auto_hide(shortcuts_bracket, shortcuts)
+wechat_item:subscribe({ "front_app_switched", "system_woke" }, function(_)
+  update_wechat_badge()
+end)
