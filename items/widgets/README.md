@@ -2,47 +2,22 @@
 
 Quick reference for the app integrations and interactive widgets in this directory.
 
-- [LM Studio](#lm-studio-lm_studiolua)
-- [Clipboard](#clipboard-clipboardlua)
-- [Dictionary](#dictionary-dictionarylua)
+- [Shortcuts](#shortcuts-shortcutslua)
 - [Volume](#volume-volumelua)
-- [Quantumult X](#quantumult-x-quantumultxlua)
-- [1Password](#1password-onepasswordlua)
 - [GitHub](#github-githublua)
-- [WeChat](#wechat-wechatlua)
 - [System Stats](#system-stats-system_statslua)
-- [Time Machine](#time-machine-time_machinelua)
-- [Synergy](#synergy-synergylua)
 - [Weather](#weather-weatherlua)
 - [Now Playing](#now-playing-now_playinglua)
 
-## LM Studio (`lm_studio.lua`)
+## Shortcuts (`shortcuts.lua`)
 
-- Hover tints the icon; left-click opens a popup listing installed models (from `lms ls`) so you can load/start one; the last row unloads all models; right-click opens the LM Studio app.
-- Setup: install the CLI with `~/.lmstudio/bin/lms bootstrap` (or ensure `lms` is on `PATH`); the popup hints if the CLI is missing.
-
-## Clipboard (`clipboard.lua`)
-
-- Hover tint; left-click opens Raycast Clipboard History; right-click opens Raycast Ask Clipboard.
-- Requires the Raycast Clipboard History extension (no fallback).
-
-## Dictionary (`dictionary.lua`)
-
-- Hover tint; left-click runs Instant Translate on the current selection; right-click opens Raycast Quick Translate.
-- Requires the Raycast "Translate" extension (`gebeto/translate`).
+- A row of shortcut icons (Clipboard, Dictionary, LM Studio, 1Password, Quantumult X, Synergy, Time Machine, Ubuntu, WeChat) managed in one widget file.
+- Left-click each icon to open its own centered popup; right-click does nothing.
 
 ## Volume (`volume.lua`)
 
 - Shows the current output volume and an icon.
 - Click opens SoundSource; right-click opens Sound settings.
-
-## Quantumult X (`quantumultx.lua`)
-
-- Hover tint; left-click toggles a popup with Public IP, Location, and ISP (queried from `ipinfo.io` via `curl`); right-click opens Quantumult X.
-
-## 1Password (`onepassword.lua`)
-
-- Hover tint; left-click opens 1Password Quick Access (Cmd+Shift+Space); right-click opens the app.
 
 ## GitHub (`github.lua`)
 
@@ -60,24 +35,6 @@ Quick reference for the app integrations and interactive widgets in this directo
 ## System Stats (`system_stats.lua`)
 
 - Shows CPU/GPU usage with current temperatures plus memory usage, driven by the native helper in `helpers/system_stats`.
-
-## Time Machine (`time_machine.lua`)
-
-- Minimal widget with a popup showing `tmutil status`, latest backup timestamp, and actions (start/stop backup, open destination, open Time Machine); right-click opens Time Machine settings.
-- `tmutil latestbackup` may require Full Disk Access for the running `sketchybar` binary; if it's blocked, the widget falls back to `LastBackupActivity` from `/Library/Preferences/com.apple.TimeMachine.plist` (restart SketchyBar after changing privacy permissions).
-
-## Synergy (`synergy.lua`)
-
-- Idle icon is grayscale; hover tints the icon; left-click toggles a popup and fetches status; right-click opens the Synergy app and brings its window forward.
-- Icon setup (once):
-
-```bash
-mkdir -p ~/.config/sketchybar/icons
-sips --matchTo \
-"/System/Library/ColorSync/Profiles/Generic Gray Gamma 2.2 Profile.icc" \
-~/.config/sketchybar/icons/synergy.png \
---out ~/.config/sketchybar/icons/synergy_gray.png
-```
 
 ## Weather (`weather.lua`)
 

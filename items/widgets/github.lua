@@ -225,7 +225,7 @@ local function github_fetch_cmd(since, orgs)
   local env_prefix = table.concat(env_parts, " ")
   if env_prefix ~= "" then env_prefix = env_prefix .. " " end
 
-  local script = [[
+  local script = [=[
 if ! command -v gh >/dev/null 2>&1; then
   echo "ERR|gh_missing"
   exit 0
@@ -281,7 +281,7 @@ assigned_issues=$(gh api /search/issues -f q="is:issue is:open assignee:$login" 
 review_requests=$(gh api /search/issues -f q="is:pr is:open review-requested:$login" --jq '.total_count' 2>/dev/null) || { echo "ERR|search_failed"; exit 0; }
 
 echo "OK|$login|$name|$repos|$followers|$following|$open_issues|$open_prs|$assigned_issues|$review_requests|$new_issues"
-]]
+]=]
 
   return "/bin/zsh -lc " .. string.format("%q", env_prefix .. script)
 end
