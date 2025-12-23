@@ -8,6 +8,7 @@ Quick reference for the app integrations and interactive widgets in this directo
 - [Volume](#volume-volumelua)
 - [Quantumult X](#quantumult-x-quantumultxlua)
 - [1Password](#1password-onepasswordlua)
+- [GitHub](#github-githublua)
 - [WeChat](#wechat-wechatlua)
 - [iStat Menus](#istat-menus-istat_menuslua)
 - [Time Machine](#time-machine-time_machinelua)
@@ -42,6 +43,14 @@ Quick reference for the app integrations and interactive widgets in this directo
 ## 1Password (`onepassword.lua`)
 
 - Hover tint; left-click opens 1Password Quick Access (Cmd+Shift+Space); right-click opens the app.
+
+## GitHub (`github.lua`)
+
+- Shows a GitHub badge for new issues created since you last opened issues, plus a popup with repo/issue/PR counts.
+- Left-click toggles the popup; right-click opens GitHub Issues and clears the new-issue badge.
+- Setup: install GitHub CLI and run `gh auth login`.
+- Ensure auth scopes include `repo` for private repos and `read:org` if you include orgs with private repos.
+- Optional: set `GITHUB_ORGS` (comma-separated) to include org-owned repositories in the counts.
 
 ## WeChat (`wechat.lua`)
 
