@@ -137,8 +137,8 @@ static bool read_memory_stats(uint64_t *used_bytes, uint64_t *total_bytes, int *
   vm_size_t page_size = 0;
   if (host_page_size(host, &page_size) != KERN_SUCCESS) return false;
 
-  uint64_t free_bytes = ((uint64_t)vmstat.free_count + (uint64_t)vmstat.speculative_count) * (uint64_t)page_size;
-  uint64_t used = (total > free_bytes) ? (total - free_bytes) : 0;
+  uint64_t used_pages = (uint64_t)vmstat.active_count + (uint64_t)vmstat.wire_count + (uint64_t)vmstat.compressor_page_count;
+  uint64_t used = used_pages * (uint64_t)page_size;
   int pct = total > 0 ? (int)((double)used / (double)total * 100.0) : 0;
 
   *used_bytes = used;
