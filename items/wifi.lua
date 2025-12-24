@@ -8,12 +8,13 @@ local center_popup = require("center_popup")
 sbar.exec("killall network_load >/dev/null; $CONFIG_DIR/helpers/network_load/bin/network_load auto network_update 1.0")
 
 local popup_width = 480
-local rate_label_width = 52
+local rate_label_width = 60
+local wifi_right_padding = settings.group_paddings * 3
 
 local wifi_up = sbar.add("item", "widgets.wifi1", {
   position = "right",
   padding_left = -5,
-  padding_right = 0,
+  padding_right = 8,
   width = 0,
   icon = {
     padding_right = 0,
@@ -43,7 +44,7 @@ local wifi_up = sbar.add("item", "widgets.wifi1", {
 local wifi_down = sbar.add("item", "widgets.wifi2", {
   position = "right",
   padding_left = -5,
-  padding_right = 0,
+  padding_right = 8,
   icon = {
     padding_right = 0,
     font = {
@@ -360,7 +361,7 @@ local cc_item = sbar.add("item", {
   },
 })
 
-sbar.add("item", { position = "right", width = settings.group_paddings })
+sbar.add("item", { position = "right", width = wifi_right_padding })
 
 local function format_rate(rate)
   local num = tonumber(rate) or 0
