@@ -14,6 +14,7 @@ local remaining = durations[phase]
 local running = false
 local last_tick = os.time()
 local state_path = os.getenv("HOME") .. "/.config/sketchybar/states/pomodoro_state"
+local config_path = os.getenv("HOME") .. "/.config/sketchybar/states/pomodoro_config"
 local last_saved_at = 0
 
 local pomodoro = sbar.add("item", "pomodoro", {
@@ -67,6 +68,16 @@ local function save_state()
   file:close()
 end
 
+local function save_config()
+  ensure_state_dir()
+  local file = io.open(config_path, "w")
+  if not file then return end
+  file:write("focus=", tostring(math.floor(durations.focus / 60)), "\n")
+  file:write("short=", tostring(math.floor(durations.short / 60)), "\n")
+  file:write("long=", tostring(math.floor(durations.long / 60)), "\n")
+  file:close()
+end
+
 local function save_state_throttled(force)
   local now = os.time()
   if force or (now - last_saved_at) >= 60 then
@@ -99,13 +110,35 @@ local function load_state()
 
   local loaded_remaining = tonumber(data.remaining)
   if loaded_remaining then
-    remaining = math.max(loaded_remaining, 0)
+    remaining = math.min(math.max(loaded_remaining, 0), durations[phase])
   else
     remaining = durations[phase]
   end
 
   running = data.running == "true"
   last_tick = os.time()
+end
+
+local function load_config()
+  local file = io.open(config_path, "r")
+  if not file then return end
+
+  local data = {}
+  for line in file:lines() do
+    local key, value = line:match("^(%w+)%s*=%s*(%d+)$")
+    if key and value then
+      data[key] = tonumber(value)
+    end
+  end
+  file:close()
+
+  local keys = { "focus", "short", "long" }
+  for _, key in ipairs(keys) do
+    local minutes = data[key]
+    if minutes and minutes > 0 then
+      durations[key] = minutes * 60
+    end
+  end
 end
 
 local function format_time(seconds)
@@ -144,6 +177,42 @@ local function notify(message)
     message
   )
   sbar.exec(cmd)
+end
+
+local function edit_durations()
+  local focus_minutes = math.floor(durations.focus / 60)
+  local short_minutes = math.floor(durations.short / 60)
+  local long_minutes = math.floor(durations.long / 60)
+  local script = string.format(
+    [[osascript -e 'set focusMinutes to text returned of (display dialog "Focus minutes" default answer "%d")' -e 'set shortMinutes to text returned of (display dialog "Short break minutes" default answer "%d")' -e 'set longMinutes to text returned of (display dialog "Long break minutes" default answer "%d")' -e 'return focusMinutes & "," & shortMinutes & "," & longMinutes']],
+    focus_minutes,
+    short_minutes,
+    long_minutes
+  )
+
+  sbar.exec(script, function(result, exit_code)
+    if exit_code ~= 0 then return end
+    if type(result) ~= "string" then return end
+
+    local focus_str, short_str, long_str = result:match("^(%d+),(%d+),(%d+)%s*$")
+    if not focus_str then return end
+
+    local focus_value = tonumber(focus_str)
+    local short_value = tonumber(short_str)
+    local long_value = tonumber(long_str)
+    if not focus_value or focus_value < 1 then return end
+    if not short_value or short_value < 1 then return end
+    if not long_value or long_value < 1 then return end
+
+    durations.focus = focus_value * 60
+    durations.short = short_value * 60
+    durations.long = long_value * 60
+    remaining = durations[phase]
+    last_tick = os.time()
+    save_config()
+    update_display()
+    save_state_throttled(true)
+  end)
 end
 
 local function update_display()
@@ -197,6 +266,10 @@ local function reset_phase()
 end
 
 pomodoro:subscribe("mouse.clicked", function(env)
+  if env.BUTTON == "middle" or env.BUTTON == "other" then
+    edit_durations()
+    return
+  end
   if env.BUTTON == "right" then
     reset_phase()
     return
@@ -224,5 +297,6 @@ pomodoro:subscribe("routine", function()
   end
 end)
 
+load_config()
 load_state()
 update_display()

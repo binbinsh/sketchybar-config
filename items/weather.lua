@@ -73,6 +73,34 @@ local function owm_icon_for(id, is_day)
   return "☁️"                                               -- Default
 end
 
+local function owm_zh_for(id)
+  id = tonumber(id) or 800
+  if id >= 200 and id < 300 then return "雷暴" end
+  if id >= 300 and id < 400 then return "毛毛雨" end
+  if id >= 500 and id < 600 then return "降雨" end
+  if id >= 600 and id < 700 then return "降雪" end
+  if id >= 700 and id < 800 then
+    local map = {
+      [701] = "薄雾",
+      [711] = "烟雾",
+      [721] = "霾",
+      [731] = "沙尘",
+      [741] = "雾",
+      [751] = "沙尘",
+      [761] = "扬尘",
+      [762] = "火山灰",
+      [771] = "狂风",
+      [781] = "龙卷风",
+    }
+    return map[id] or "雾霾"
+  end
+  if id == 800 then return "晴" end
+  if id == 801 then return "少云" end
+  if id == 802 then return "多云" end
+  if id == 803 or id == 804 then return "阴" end
+  return nil
+end
+
 local function parse_weather_psv(psv)
   local parts = split(psv or "", "|")
   if #parts < 10 then return nil end
@@ -361,7 +389,16 @@ local function update_popup_contents()
     title_text = coord_text ~= "" and coord_text or "Location"
   end
   title_item:set({ label = title_text .. " " .. icons.refresh })
-  cond_item:set({ label = current_data.desc or "" })
+  local condition_label = current_data.desc or ""
+  local condition_zh = owm_zh_for(current_data.id)
+  if condition_zh and condition_zh ~= "" then
+    if condition_label ~= "" then
+      condition_label = condition_label .. " " .. condition_zh
+    else
+      condition_label = condition_zh
+    end
+  end
+  cond_item:set({ label = condition_label })
   temp_item:set({ label = tostring(math.floor((current_data.temp or 0) + 0.5)) .. "°C" })
   feels_item:set({ label = tostring(math.floor((current_data.feels or 0) + 0.5)) .. "°C" })
   humidity_item:set({ label = tostring(current_data.humidity or 0) .. "%" })

@@ -9,7 +9,7 @@ sbar.exec("killall network_load >/dev/null; $CONFIG_DIR/helpers/network_load/bin
 
 local popup_width = 480
 local rate_label_width = 60
-local wifi_right_padding = settings.group_paddings * 3
+local wifi_left_padding = 4
 
 local wifi_up = sbar.add("item", "widgets.wifi1", {
   position = "right",
@@ -361,7 +361,8 @@ local cc_item = sbar.add("item", {
   },
 })
 
-sbar.add("item", { position = "right", width = wifi_right_padding })
+
+sbar.add("item", { position = "right", width = wifi_left_padding })
 
 local function format_rate(rate)
   local num = tonumber(rate) or 0
