@@ -14,16 +14,18 @@ curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/instal
 
 ## Features
 
-- Weather: Location-aware current conditions and detailed popup with refresh controls.
-- System stats: CPU/GPU/temperature and memory metrics via the native helper.
-- GitHub: Issue/PR/repo counts plus a new-issue badge.
-- Pomodoro: Minimal focus timer with click controls and notifications.
-- WeChat: Unread badge display with click-to-open behavior.
-- Ubuntu monitor: Remote CPU/GPU/memory/load metrics over SSH.
+- Weather: Location-aware current conditions and a centered popup with refresh controls.
+- System stats: CPU/GPU/temperature and memory graphs via the native helper.
+- Battery: Compact percentage + detailed popup (native helper).
+- Wi‑Fi: Throughput widget + details popup (native helpers).
+- Menus: Apple menu + current app menu rendering driven by the native menus helper.
+- Pomodoro: Compact timer with click controls and persisted state.
+- Spaces: Space switcher with persistent custom names.
+- Volume: Compact volume + scroll to adjust; integrates with SoundSource when available.
+- 1Password: Quick Access launcher.
 
 ## Docs
 
 - Items and widgets: `docs/items.md`.
 - Location helper: `docs/location.md`.
-- Space scan helper: `docs/space_scan.md`.
 - System stats: `docs/system_stats.md`.

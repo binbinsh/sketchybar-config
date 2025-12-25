@@ -18,6 +18,7 @@ local icons = {
     lock = "􀎡",
     translate = "🔍",
     ubuntu = "ⓤ",
+    wechat = "􀌤",
 
     switch = {
       on = "􁏮",
@@ -71,6 +72,8 @@ local icons = {
     lock = "",
     translate = "", -- fa-language
     ubuntu = "",
+    github = "", -- fa-github
+    wechat = "", -- fa-weixin (WeChat)
 
     switch = {
       on = "󱨥",

@@ -1,63 +1,49 @@
 local settings = require("settings")
 local colors = require("colors")
 
--- Padding item required because of bracket
-sbar.add("item", { position = "right", width = settings.group_paddings })
+-- Battery-style compact calendar/time widget:
+-- - No bracket/padding items (lighter + consistent with `battery.lua`)
+-- - Cached rendering to avoid redundant set() calls
+-- - Minute-level updates without shell polling
+local last_label = nil
+local weekday_names = { "日", "一", "二", "三", "四", "五", "六" }
 
-local cal = sbar.add("item", {
+local cal = sbar.add("item", "widgets.calendar", {
+  position = "right",
   icon = {
+    string = "􀧞",
     color = colors.white,
-    padding_left = 8,
     font = {
-      style = settings.font.style_map["Black"],
-      size = 12.0,
+      style = settings.font.style_map["Regular"],
+      size = 15.0,
     },
   },
   label = {
-    color = colors.white,
-    padding_right = 8,
-    width = 150,
-    align = "right",
     font = { family = settings.font.numbers },
+    width = 150,
+    padding_left = 2,
+    padding_right = 6,
+    align = "right",
+    string = "Loading…",
   },
-  position = "right",
+  padding_left = 0,
+  padding_right = 0,
   update_freq = 30,
-  padding_left = 1,
-  padding_right = 1,
-  background = {
-    color = colors.with_alpha(colors.bg2, 0.2),
-    border_color = colors.with_alpha(colors.bg2, 0.2),
-    border_width = 1
-  },
 })
 
--- Double border for calendar using a single item bracket
-sbar.add("bracket", { cal.name }, {
-  background = {
-    color = colors.with_alpha(colors.bg1, 0.2),
-    height = 30,
-    border_color = colors.with_alpha(colors.bg2, 0.2),
-    border_width = 2,
-  }
-})
-
--- Padding item required because of bracket
-sbar.add("item", { position = "right", width = settings.group_paddings })
-
-cal:subscribe({ "forced", "routine", "system_woke" }, function(env)
-  local weekday_names = { "日", "一", "二", "三", "四", "五", "六" }
+local function update_calendar()
+  if _G.SKETCHYBAR_SUSPENDED then return end
   local weekday_cn = weekday_names[tonumber(os.date("%w")) + 1]
-  cal:set({
-    icon = "􀧞",
-    label = "周" .. weekday_cn .. " " .. os.date("%m月%d日 %H:%M")
-  })
-end)
+  local label = "周" .. weekday_cn .. " " .. os.date("%m月%d日 %H:%M")
+  if last_label == label then return end
+  last_label = label
+  cal:set({ label = { string = label } })
+end
+
+cal:subscribe({ "forced", "routine", "system_woke" }, update_calendar)
+update_calendar()
 
 cal:subscribe("mouse.clicked", function(env)
-  if env.BUTTON == "right" then
-    sbar.exec("open -a 'Notion Calendar'")
-    return
-  end
   if env.BUTTON ~= "left" then return end
-  sbar.exec([[osascript -e 'tell application "System Events" to click menu bar item 1 of menu bar 1 of application process "ControlCenter"']])
+  sbar.exec([[osascript -e 'tell application "System Events" to click menu bar item 1 of menu bar 1 of application process "ControlCenter"' >/dev/null 2>&1]])
 end)

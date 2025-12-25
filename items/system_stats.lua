@@ -1,10 +1,11 @@
 local colors = require("colors")
 local settings = require("settings")
 
-sbar.exec("killall system_stats >/dev/null; " .. os.getenv("CONFIG_DIR") .. "/helpers/system_stats/bin/system_stats system_stats_update 1.0")
+sbar.exec("killall system_stats >/dev/null 2>&1; " .. os.getenv("CONFIG_DIR") .. "/helpers/system_stats/bin/system_stats system_stats_update 2.0")
 
 local cpu_gpu_width = 44
 local mem_width = 28
+local trailing_gap = 16 -- Match the visual gap of other compact widgets (e.g. battery ↔ volume)
 
 local function usage_color(value)
   if not value then return colors.blue end
@@ -14,16 +15,10 @@ local function usage_color(value)
   return colors.blue
 end
 
-local function make_graph(name, icon_text, color, width)
+local function make_graph(name, icon_text, color, width, padding_right)
   return sbar.add("graph", name, width, {
     position = "right",
     graph = { color = color },
-    background = {
-      height = 22,
-      color = { alpha = 0 },
-      border_color = { alpha = 0 },
-      drawing = true,
-    },
     icon = {
       string = icon_text,
       font = {
@@ -41,19 +36,24 @@ local function make_graph(name, icon_text, color, width)
         size = 9.0,
       },
       align = "right",
-      padding_right = 0,
+      padding_left = 2,
+      padding_right = 6,
       width = 0,
       y_offset = 4,
     },
-    padding_right = settings.paddings + 6,
+    -- Battery-style compact spacing (no bracket/padding items).
+    padding_left = 0,
+    padding_right = padding_right or 0,
   })
 end
 
-local mem = make_graph("widgets.sys.mem", "MEM", colors.green, mem_width)
-local gpu = make_graph("widgets.sys.gpu", "GPU", colors.magenta, cpu_gpu_width)
-local cpu = make_graph("widgets.sys.cpu", "CPU", colors.blue, cpu_gpu_width)
+-- Add a small trailing gap so `system_stats` doesn't visually stick to `weather`.
+local mem = make_graph("widgets.sys.mem", "MEM", colors.green, mem_width, trailing_gap)
+local gpu = make_graph("widgets.sys.gpu", "GPU", colors.magenta, cpu_gpu_width, 0)
+local cpu = make_graph("widgets.sys.cpu", "CPU", colors.blue, cpu_gpu_width, 0)
 
 cpu:subscribe("system_stats_update", function(env)
+  if _G.SKETCHYBAR_SUSPENDED then return end
   local cpu_total = tonumber(env.cpu_total)
   local cpu_temp_val = tonumber(env.cpu_temp)
   local cpu_label = cpu_total and string.format("%d%%", cpu_total) or "--"
@@ -82,11 +82,13 @@ cpu:subscribe("system_stats_update", function(env)
 
   cpu:set({
     graph = { color = usage_color(cpu_total) },
+    icon = { color = usage_color(cpu_total) },
     label = cpu_label,
   })
 
   gpu:set({
     graph = { color = usage_color(gpu_util) },
+    icon = { color = usage_color(gpu_util) },
     label = gpu_label,
   })
 
@@ -95,26 +97,10 @@ cpu:subscribe("system_stats_update", function(env)
     mem:push({ mem_percent / 100.0 })
     mem:set({
       graph = { color = usage_color(mem_percent) },
+      icon = { color = usage_color(mem_percent) },
       label = string.format("%d%%", mem_percent),
     })
   else
     mem:set({ label = "--" })
   end
 end)
-
-sbar.add("bracket", "widgets.sys.bracket", {
-  cpu.name,
-  gpu.name,
-  mem.name,
-}, {
-  background = {
-    color = colors.with_alpha(colors.bg1, 0.2),
-    border_color = colors.with_alpha(colors.bg2, 0.2),
-    border_width = 2,
-  }
-})
-
-sbar.add("item", "widgets.sys.padding", {
-  position = "right",
-  width = settings.group_paddings
-})

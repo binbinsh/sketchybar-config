@@ -1,36 +1,41 @@
+local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
 local center_popup = require("center_popup")
-local icons = require("icons")
+
+-- Battery-style weather widget:
+-- - Compact item (no brackets/padding items)
+-- - Event-driven refresh + TTL cache
+-- - Popup uses battery-style rows and only updates when shown
+-- - Temperature is always displayed as °C
 
 local cache_dir = os.getenv("HOME") .. "/.cache/sketchybar"
 local weather_cache = cache_dir .. "/weather.txt"
 local location_cache = cache_dir .. "/location.txt"
 
-local popup_width = 480
-local weather_cache_ttl = 600    -- 10 minutes
-local location_cache_ttl = 1800   -- 30 minutes
+local WEATHER_TTL = tonumber(os.getenv("WEATHER_CACHE_TTL")) or 600
+local LOCATION_TTL = tonumber(os.getenv("WEATHER_LOCATION_TTL")) or 1800
 
--- Ensure cache dir exists
-sbar.exec("/bin/zsh -lc 'mkdir -p " .. cache_dir .. "'")
+-- Best-effort: ensure cache dir exists (silent).
+sbar.exec("/bin/zsh -lc 'mkdir -p " .. cache_dir .. " >/dev/null 2>&1'")
 
 local function trim_newline(s)
   if not s then return "" end
-  return (s:gsub("\n$", ""))
+  return (tostring(s):gsub("\n$", ""))
 end
 
--- Split function to properly handle empty fields
+-- Split function that preserves empty fields when using a non-whitespace separator.
 local function split(s, sep)
   local parts = {}
+  s = tostring(s or "")
   if sep == nil or sep == "%s" then
-    for w in s:gmatch("%S+") do parts[#parts+1] = w end
+    for w in s:gmatch("%S+") do parts[#parts + 1] = w end
     return parts
   end
-  -- Escape any non-alphanumeric char for Lua pattern
   local escaped_sep = sep:gsub("(%W)", "%%%1")
   local pattern = "(.-)" .. escaped_sep
   local tmp = s .. sep
-  for m in tmp:gmatch(pattern) do parts[#parts+1] = m end
+  for m in tmp:gmatch(pattern) do parts[#parts + 1] = m end
   return parts
 end
 
@@ -50,15 +55,46 @@ local function write_file(path, content)
   return true
 end
 
--- Simple shell exec wrapper
-local function exec(cmd, callback)
-  sbar.exec(cmd, callback)
+local function sanitize_field(s)
+  s = tostring(s or "")
+  return s:gsub("\n", " "):gsub("|", "/")
 end
 
--- Use rotating SF Symbol for manual refresh animation
-local update_popup_contents
-local title_item
+local function round_int(n)
+  n = tonumber(n) or 0
+  if n >= 0 then return math.floor(n + 0.5) end
+  return math.ceil(n - 0.5)
+end
 
+local function format_temp_c(n)
+  return tostring(round_int(n)) .. "°C"
+end
+
+local function format_wind(n)
+  local v = tonumber(n)
+  if v == nil then return "-" end
+  return string.format("%.1f m/s", v)
+end
+
+local function format_humidity(n)
+  local v = tonumber(n)
+  if v == nil then return "-" end
+  return tostring(round_int(v)) .. "%"
+end
+
+local function format_pressure(n)
+  local v = tonumber(n)
+  if v == nil then return "-" end
+  return tostring(round_int(v)) .. " hPa"
+end
+
+local function format_time_local(epoch, tz_offset)
+  local t = tonumber(epoch) or 0
+  if t <= 0 then return "-" end
+  local off = tonumber(tz_offset) or 0
+  -- OpenWeather timestamps are UTC; display in the location's local time.
+  return os.date("!%H:%M", t + off)
+end
 
 local function owm_icon_for(id, is_day)
   id = tonumber(id) or 800
@@ -101,26 +137,9 @@ local function owm_zh_for(id)
   return nil
 end
 
-local function parse_weather_psv(psv)
-  local parts = split(psv or "", "|")
-  if #parts < 10 then return nil end
-  return {
-    temp = tonumber(parts[1] or 0),
-    id = tonumber(parts[2] or 800),
-    desc = parts[3] or "",
-    sunrise = tonumber(parts[4] or 0),
-    sunset = tonumber(parts[5] or 0),
-    tz = parts[6] or "",
-    wind = tonumber(parts[7] or 0),
-    humidity = tonumber(parts[8] or 0),
-    pressure = tonumber(parts[9] or 0),
-    feels = tonumber(parts[10] or 0),
-  }
-end
-
-local function build_onecall_url(lat, lon, key)
+local function build_weather_url(lat, lon, key)
   return string.format(
-    "https://api.openweathermap.org/data/3.0/onecall?lat=%s&lon=%s&exclude=minutely,hourly,daily,alerts&units=metric&lang=en&appid=%s",
+    "https://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&units=metric&lang=en&appid=%s",
     lat, lon, key
   )
 end
@@ -128,61 +147,28 @@ end
 local function build_jxa_cmd(js_lines, argv)
   local parts = {}
   for _, line in ipairs(js_lines) do
-    parts[#parts+1] = "-e " .. string.format("%q", line)
+    parts[#parts + 1] = "-e " .. string.format("%q", line)
   end
   local cmd = "/usr/bin/osascript -l JavaScript " .. table.concat(parts, " ")
   if argv then cmd = cmd .. " -- " .. string.format("%q", argv) end
   return cmd
 end
 
-local function jxa_fetch_onecall(url)
-  local js_lines = {
-    "function run(argv) {",
-    "  var url = argv[0];",
-    "  var app = Application.currentApplication();",
-    "  app.includeStandardAdditions = true;",
-    "  var s = app.doShellScript(\"/usr/bin/curl -m 6 -s \" + JSON.stringify(url));",
-    "  var j = JSON.parse(s);",
-    "  var c = j.current || {};",
-    "  var w = (c.weather && c.weather[0]) || {};",
-    "  return [",
-    "    Math.round((c.temp||0)),",
-    "    (w.id||800),",
-    "    (w.description||\"\"),",
-    "    (c.sunrise||0),",
-    "    (c.sunset||0),",
-    "    (j.timezone||\"\"),",
-    "    (+(Math.round(((c.wind_speed||0)*10))/10)).toFixed(1),",
-    "    (c.humidity||0),",
-    "    (c.pressure||0),",
-    "    Math.round((c.feels_like||0))",
-    "  ].join(\"|\");",
-    "}"
-  }
-  return build_jxa_cmd(js_lines, url)
-end
-
-local function get_api_key(callback)
-  local cmd = [[/bin/zsh -lc "security find-generic-password -a "$USER" -s OPENWEATHERMAP_API_KEY -w 2>/dev/null || true"]]
-  sbar.exec(cmd, function(out)
-    local key = trim_newline(out or "")
-    callback(key ~= "" and key or nil)
-  end)
-end
-
--- Reverse geocode coordinates to a human-friendly place name using
--- OpenStreetMap Nominatim (no API key required). We parse JSON via JXA.
+-- Reverse geocode coordinates to a human-friendly place name (no API key).
+-- Cached via `location_cache` to keep this lightweight.
 local function reverse_geocode_label(lat, lon, callback)
   local url = string.format(
-    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=%s&lon=%s&zoom=12&addressdetails=1",
-    lat, lon
+    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=%s&lon=%s&zoom=12&addressdetails=1&accept-language=zh-CN",
+    lat,
+    lon
   )
+
   local js_lines = {
     "function run(argv) {",
     "  var url = argv[0];",
     "  var app = Application.currentApplication();",
     "  app.includeStandardAdditions = true;",
-    "  var cmd = '/usr/bin/curl -m 4 -H ' + JSON.stringify('User-Agent: sketchybar-weather') + ' -s ' + JSON.stringify(url);",
+    "  var cmd = '/usr/bin/curl -m 4 -H ' + JSON.stringify('User-Agent: sketchybar-weather') + ' -H ' + JSON.stringify('Accept-Language: zh-CN,zh;q=0.9,en;q=0.6') + ' -s ' + JSON.stringify(url);",
     "  var s = app.doShellScript(cmd);",
     "  try {",
     "    var j = JSON.parse(s);",
@@ -192,378 +178,542 @@ local function reverse_geocode_label(lat, lon, callback)
     "    if (!label && j.display_name) label = (j.display_name.split(',')[0]||'').trim();",
     "    return label;",
     "  } catch (e) { return ''; }",
-    "}"
+    "}",
   }
-  exec(build_jxa_cmd(js_lines, url), function(out)
+
+  sbar.exec(build_jxa_cmd(js_lines, url), function(out)
     out = trim_newline(out or "")
-    callback(out ~= "" and out or nil)
+    if callback then callback(out ~= "" and out or nil) end
   end)
 end
 
-local function resolve_location(callback)
-  -- Check cache first
+local function jxa_fetch_current(url)
+  local js_lines = {
+    "function run(argv) {",
+    "  var url = argv[0];",
+    "  var app = Application.currentApplication();",
+    "  app.includeStandardAdditions = true;",
+    "  try {",
+    "    var s = app.doShellScript('/usr/bin/curl -m 6 -s ' + JSON.stringify(url));",
+    "    var j = JSON.parse(s);",
+    "    var cod = j.cod;",
+    "    if (cod && cod != 200 && cod != '200') return '';",
+    "    var w = (j.weather && j.weather[0]) || {};",
+    "    var main = j.main || {};",
+    "    var sys = j.sys || {};",
+    "    var wind = j.wind || {};",
+    "    var name = (j.name || '');",
+    "    var country = (sys.country || '');",
+    "    var place = name;",
+    "    if (place && country) place = place + ', ' + country;",
+    "    if (!place) place = country || '';",
+    "    return [",
+    "      Math.round((main.temp||0)),",
+    "      (w.id||800),",
+    "      (w.description||''),",
+    "      (sys.sunrise||0),",
+    "      (sys.sunset||0),",
+    "      (j.timezone||0),",
+    "      (+(Math.round(((wind.speed||0)*10))/10)).toFixed(1),",
+    "      (main.humidity||0),",
+    "      (main.pressure||0),",
+    "      Math.round((main.feels_like||0)),",
+    "      (place||'')",
+    "    ].join('|');",
+    "  } catch (e) { return ''; }",
+    "}",
+  }
+  return build_jxa_cmd(js_lines, url)
+end
+
+local function parse_weather_psv(psv)
+  local parts = split(psv or "", "|")
+  if #parts < 11 then return nil end
+  return {
+    temp = tonumber(parts[1] or 0),
+    id = tonumber(parts[2] or 800),
+    desc = parts[3] or "",
+    sunrise = tonumber(parts[4] or 0),
+    sunset = tonumber(parts[5] or 0),
+    tz_offset = tonumber(parts[6] or 0),
+    wind = tonumber(parts[7] or 0),
+    humidity = tonumber(parts[8] or 0),
+    pressure = tonumber(parts[9] or 0),
+    feels = tonumber(parts[10] or 0),
+    place = parts[11] or "",
+  }
+end
+
+local function write_weather_cache(data)
+  if type(data) ~= "table" then return end
+  local ts = os.time()
+  local line = table.concat({
+    tostring(ts),
+    tostring(round_int(data.temp)),
+    tostring(data.id or 800),
+    sanitize_field(data.desc),
+    tostring(data.sunrise or 0),
+    tostring(data.sunset or 0),
+    tostring(data.tz_offset or 0),
+    string.format("%.1f", tonumber(data.wind) or 0),
+    tostring(data.humidity or 0),
+    tostring(data.pressure or 0),
+    tostring(round_int(data.feels or 0)),
+    sanitize_field(data.place),
+    tostring(data.lat or 0),
+    tostring(data.lon or 0),
+  }, "|")
+  write_file(weather_cache, line)
+end
+
+local function try_read_weather_cache()
+  local cached = read_file(weather_cache)
+  if not cached or cached == "" then return nil end
+  local parts = split(trim_newline(cached), "|")
+  if #parts < 14 then return nil end
+
+  local ts = tonumber(parts[1] or 0) or 0
+  if ts <= 0 then return nil end
+  if os.time() - ts >= WEATHER_TTL then return nil end
+
+  return {
+    ts = ts,
+    temp = tonumber(parts[2] or 0),
+    id = tonumber(parts[3] or 800),
+    desc = parts[4] or "",
+    sunrise = tonumber(parts[5] or 0),
+    sunset = tonumber(parts[6] or 0),
+    tz_offset = tonumber(parts[7] or 0),
+    wind = tonumber(parts[8] or 0),
+    humidity = tonumber(parts[9] or 0),
+    pressure = tonumber(parts[10] or 0),
+    feels = tonumber(parts[11] or 0),
+    place = parts[12] or "",
+    lat = parts[13],
+    lon = parts[14],
+  }
+end
+
+local function try_read_location_cache()
   local cached = read_file(location_cache)
-  local now = os.time()
-  if cached and cached ~= "" then
-    local parts = split(trim_newline(cached), "|")
-    if #parts >= 4 then
-      local ts = tonumber(parts[1] or 0) or 0
-      if now - ts < location_cache_ttl then
-        return callback({ lat = parts[2], lon = parts[3], label = parts[4] })
-      end
-    end
+  if not cached or cached == "" then return nil end
+  local parts = split(trim_newline(cached), "|")
+  if #parts < 3 then return nil end
+  local ts = tonumber(parts[1] or 0) or 0
+  local lat = parts[2]
+  local lon = parts[3]
+  local label = parts[4] or ""
+  if ts <= 0 or not lat or not lon or lat == "" or lon == "" then return nil end
+  if os.time() - ts >= LOCATION_TTL then return nil end
+  return { ts = ts, lat = lat, lon = lon, label = label }
+end
+
+local function write_location_cache(lat, lon, label)
+  if not lat or not lon then return end
+  lat = tostring(lat)
+  lon = tostring(lon)
+  label = sanitize_field(label or "")
+  local line = string.format("%d|%s|%s|%s\n", os.time(), lat, lon, label)
+  write_file(location_cache, line)
+end
+
+local function resolve_location(callback)
+  local cached = try_read_location_cache()
+  if cached then
+    callback(cached)
+    return
   end
 
-  -- Launch the .app (blocks until exit), then read cache file directly
   local app_bundle = os.getenv("HOME") .. "/.config/sketchybar/helpers/location/bin/SketchyBarLocationHelper.app"
-  local cmd = "/bin/zsh -lc 'open -W " .. app_bundle .. " >/dev/null 2>&1'"
-  exec(cmd, function(_)
+  sbar.exec("/bin/zsh -lc 'open -W " .. app_bundle .. " >/dev/null 2>&1'", function()
     local raw = read_file(location_cache)
     raw = trim_newline(raw or "")
     local parts = split(raw, "|")
     if #parts >= 3 then
-      local lat = parts[2]
-      local lon = parts[3]
-      reverse_geocode_label(lat, lon, function(label)
-        if not label or label == "" then label = "" end
-        write_file(location_cache, string.format("%d|%s|%s|%s", os.time(), lat, lon, label))
-        callback({ lat = lat, lon = lon, label = label })
-      end)
+      callback({
+        ts = tonumber(parts[1] or 0) or os.time(),
+        lat = parts[2],
+        lon = parts[3],
+        label = parts[4] or "",
+      })
     else
       callback(nil)
     end
   end)
 end
 
+local cached_api_key = nil
+local api_key_checked = false
+local function get_api_key(callback)
+  if api_key_checked then
+    callback(cached_api_key)
+    return
+  end
+  api_key_checked = true
+  local cmd = [[/bin/zsh -lc "security find-generic-password -a "$USER" -s OPENWEATHERMAP_API_KEY -w 2>/dev/null || true"]]
+  sbar.exec(cmd, function(out)
+    local key = trim_newline(out or "")
+    cached_api_key = (key ~= "") and key or nil
+    callback(cached_api_key)
+  end)
+end
+
+-- Widget (compact, battery-style) with cached render state.
+local last_widget_icon = nil
+local last_widget_color = nil
+local last_widget_label = nil
+
 local weather = sbar.add("item", "widgets.weather", {
   position = "right",
   icon = {
-    string = "☁️",
-    align = "left",
+    font = { style = settings.font.style_map["Regular"], size = 12.0 },
+    padding_right = settings.paddings,
     color = colors.white,
-    font = {
-      style = settings.font.style_map["Regular"],
-      size = 14.0,
-    },
+    string = "☁️",
   },
   label = {
-    string = "??°",
-    align = "left",
-    width = 24,
-    font = {
-      family = settings.font.numbers,
-      style = settings.font.style_map["Regular"],
-      size = 14.0,
-    },
+    font = { family = settings.font.numbers },
+    width = 44,
+    padding_left = 2,
+    padding_right = 4,
+    string = "--°C",
+    color = colors.white,
   },
+  padding_left = 0,
+  padding_right = 0,
+  update_freq = WEATHER_TTL,
+  background = { drawing = false },
 })
 
-local weather_bracket = sbar.add("bracket", "widgets.weather.bracket", {
-  weather.name,
-}, {
-  background = {
-    color = colors.with_alpha(colors.bg1, 0.2),
-    border_color = colors.with_alpha(colors.bg2, 0.2),
-    border_width = 2,
-  },
-})
-
+-- Popup (battery-style rows).
+local popup_width = 420
 local weather_popup = center_popup.create("weather.popup", {
   width = popup_width,
-  height = 280,
+  height = 360,
   popup_height = 26,
-  title = "Weather",
+  title = "Weather " .. icons.refresh,
   meta = "",
+  auto_hide = false,
 })
 weather_popup.meta_item:set({ drawing = false })
 weather_popup.body_item:set({ drawing = false })
 
-sbar.add("item", { position = "right", width = settings.group_paddings })
-
--- Popup items
-local left_col_w = math.floor(popup_width * 0.55)
-local right_col_w = popup_width - left_col_w
 local popup_pos = weather_popup.position
+local name_width = 160
+local value_width = popup_width - name_width
 
--- Title row (centered) like Wi‑Fi popup title
-local title_item = sbar.add("item", {
-  position = popup_pos,
-  icon = {
-    font = { style = settings.font.style_map["Bold"] },
-    string = "📍",
-  },
-  width = popup_width,
-  align = "center",
-  label = {
-    font = { family = settings.font.icons, size = 15, style = settings.font.style_map["Bold"] },
-    string = "—",
-  },
-  background = { height = 2, color = colors.grey, y_offset = -15 },
-})
+local function add_row(key, title)
+  return sbar.add("item", "weather.popup." .. key, {
+    position = popup_pos,
+    width = popup_width,
+    icon = {
+      align = "left",
+      string = title,
+      width = name_width,
+      font = { family = settings.font.text, style = settings.font.style_map["Semibold"], size = 12.0 },
+    },
+    label = {
+      align = "right",
+      string = "-",
+      width = value_width,
+      font = { family = settings.font.numbers, style = settings.font.style_map["Regular"], size = 12.0 },
+      max_chars = 64,
+    },
+    background = { drawing = false },
+  })
+end
 
--- Detail rows: English text on the left, value on the right
-local cond_item = sbar.add("item", {
-  position = popup_pos,
-  icon = { align = "left", string = "Condition:", width = left_col_w },
-  label = { align = "right", string = "—", width = right_col_w },
-})
+local row_updated = add_row("updated", "Updated")
+local row_location = add_row("location", "Location")
+local row_condition = add_row("condition", "Condition")
+local row_temp = add_row("temp", "Temperature")
+local row_feels = add_row("feels", "Feels like")
+local row_humidity = add_row("humidity", "Humidity")
+local row_wind = add_row("wind", "Wind")
+local row_pressure = add_row("pressure", "Pressure")
+local row_sunrise = add_row("sunrise", "Sunrise")
+local row_sunset = add_row("sunset", "Sunset")
+local row_tz = add_row("tz", "Time zone")
 
-local temp_item = sbar.add("item", {
-  position = popup_pos,
-  icon = { align = "left", string = "Temperature:", width = left_col_w },
-  label = { align = "right", string = "—", width = right_col_w },
-})
-
-local feels_item = sbar.add("item", {
-  position = popup_pos,
-  icon = { align = "left", string = "Feels like:", width = left_col_w },
-  label = { align = "right", string = "—", width = right_col_w },
-})
-
-local humidity_item = sbar.add("item", {
-  position = popup_pos,
-  icon = { align = "left", string = "Humidity:", width = left_col_w },
-  label = { align = "right", string = "—", width = right_col_w },
-})
-
-local wind_item = sbar.add("item", {
-  position = popup_pos,
-  icon = { align = "left", string = "Wind:", width = left_col_w },
-  label = { align = "right", string = "—", width = right_col_w },
-})
-
-local pressure_item = sbar.add("item", {
-  position = popup_pos,
-  icon = { align = "left", string = "Pressure:", width = left_col_w },
-  label = { align = "right", string = "—", width = right_col_w },
-})
-
-local tz_item = sbar.add("item", {
-  position = popup_pos,
-  icon = { align = "left", string = "Time zone:", width = left_col_w },
-  label = { align = "right", string = "—", width = right_col_w },
-})
-
-local sunrise_item = sbar.add("item", {
-  position = popup_pos,
-  icon = { align = "left", string = "Sunrise:", width = left_col_w },
-  label = { align = "right", string = "—", width = right_col_w },
-})
-
-local sunset_item = sbar.add("item", {
-  position = popup_pos,
-  icon = { align = "left", string = "Sunset:", width = left_col_w },
-  label = { align = "right", string = "—", width = right_col_w },
-})
-
-local action_openweather = sbar.add("item", {
-  position = popup_pos,
-  width = popup_width,
-  icon = { align = "left", string = "Open OpenWeather map", width = popup_width },
-})
-
-local action_apple_weather = sbar.add("item", {
-  position = popup_pos,
-  width = popup_width,
-  icon = { align = "left", string = "Open Apple Weather", width = popup_width },
-})
+weather_popup.add_close_row({ label = "close x" })
 
 local current_data = nil
+local current_error = nil
 local current_location_label = nil
+local current_location_lat = nil
+local current_location_lon = nil
 
-local function update_popup_contents()
-  if not current_data then return end
-  local name = current_location_label
-  local latn = tonumber(current_data.lat or "")
-  local lonn = tonumber(current_data.lon or "")
-  local coord_text = ""
-  if latn and lonn then
-    local lat_i = select(1, math.modf(latn))
-    local lon_i = select(1, math.modf(lonn))
-    coord_text = string.format("(%d, %d)", lat_i, lon_i)
+local geocode_in_flight = false
+local last_geocode_attempt = 0
+
+local function set_location_state(lat, lon, label)
+  lat = lat and tostring(lat) or ""
+  lon = lon and tostring(lon) or ""
+  if lat == "" or lon == "" then return end
+
+  if current_location_lat ~= lat or current_location_lon ~= lon then
+    current_location_lat = lat
+    current_location_lon = lon
+    current_location_label = nil
   end
-  local title_text
-  if name and name ~= "" then
-    title_text = coord_text ~= "" and (name .. " " .. coord_text) or name
-  else
-    title_text = coord_text ~= "" and coord_text or "Location"
+
+  label = tostring(label or "")
+  if label ~= "" then
+    current_location_label = label
   end
-  title_item:set({ label = title_text .. " " .. icons.refresh })
-  local condition_label = current_data.desc or ""
-  local condition_zh = owm_zh_for(current_data.id)
-  if condition_zh and condition_zh ~= "" then
-    if condition_label ~= "" then
-      condition_label = condition_label .. " " .. condition_zh
-    else
-      condition_label = condition_zh
+end
+
+local function hydrate_location_label_from_cache(lat, lon)
+  lat = lat and tostring(lat) or ""
+  lon = lon and tostring(lon) or ""
+  if lat == "" or lon == "" then return end
+
+  set_location_state(lat, lon, nil)
+  local cached = try_read_location_cache()
+  if cached and tostring(cached.lat) == lat and tostring(cached.lon) == lon then
+    local label = tostring(cached.label or "")
+    if label ~= "" then
+      set_location_state(lat, lon, label)
     end
   end
-  cond_item:set({ label = condition_label })
-  temp_item:set({ label = tostring(math.floor((current_data.temp or 0) + 0.5)) .. "°C" })
-  feels_item:set({ label = tostring(math.floor((current_data.feels or 0) + 0.5)) .. "°C" })
-  humidity_item:set({ label = tostring(current_data.humidity or 0) .. "%" })
-  wind_item:set({ label = string.format("%.1f m/s", current_data.wind or 0) })
-  pressure_item:set({ label = tostring(current_data.pressure or 0) .. " hPa" })
-  tz_item:set({ label = current_data.tz or "" })
-  local sr = tonumber(current_data.sunrise or 0)
-  local ss = tonumber(current_data.sunset or 0)
-  if sr and sr > 0 then sunrise_item:set({ label = os.date("%H:%M", sr) }) end
-  if ss and ss > 0 then sunset_item:set({ label = os.date("%H:%M", ss) }) end
 end
 
-local function apply_weather_to_ui(data)
-  current_data = data
+local function set_widget(icon, color, label)
+  if icon == last_widget_icon and color == last_widget_color and label == last_widget_label then
+    return
+  end
+  last_widget_icon = icon
+  last_widget_color = color
+  last_widget_label = label
+  weather:set({
+    icon = { string = icon, color = color },
+    label = { string = label },
+  })
+end
+
+local function set_error(err)
+  current_error = err
+  set_widget("⚠️", colors.red, "--°C")
+end
+
+local function update_popup(force)
+  if not force and not weather_popup.is_showing() then return end
+
+  local updated_label = "-"
+  if current_error then
+    updated_label = tostring(current_error)
+  elseif not current_data then
+    updated_label = "Loading…"
+  else
+    local ts = tonumber(current_data.ts) or 0
+    if ts > 0 then
+      updated_label = os.date("%Y-%m-%d %H:%M", ts)
+    end
+  end
+  row_updated:set({ label = { string = updated_label } })
+
+  local place = nil
+  if current_location_label and current_location_label ~= "" then
+    place = current_location_label
+  elseif current_data and current_data.place and current_data.place ~= "" then
+    place = current_data.place
+  else
+    local lat_s = current_location_lat or (current_data and current_data.lat) or ""
+    local lon_s = current_location_lon or (current_data and current_data.lon) or ""
+    local latn = tonumber(lat_s)
+    local lonn = tonumber(lon_s)
+    if latn and lonn then
+      place = string.format("%d, %d", math.floor(latn), math.floor(lonn))
+    end
+  end
+  row_location:set({ label = { string = place or "-" } })
+
+  if not current_data then
+    row_condition:set({ label = { string = "-" } })
+    row_temp:set({ label = { string = "-" } })
+    row_feels:set({ label = { string = "-" } })
+    row_humidity:set({ label = { string = "-" } })
+    row_wind:set({ label = { string = "-" } })
+    row_pressure:set({ label = { string = "-" } })
+    row_sunrise:set({ label = { string = "-" } })
+    row_sunset:set({ label = { string = "-" } })
+    row_tz:set({ label = { string = "-" } })
+    return
+  end
+
+  local condition_label = current_data.desc or ""
+  local zh = owm_zh_for(current_data.id)
+  if zh and zh ~= "" then
+    if condition_label ~= "" then
+      condition_label = condition_label .. " " .. zh
+    else
+      condition_label = zh
+    end
+  end
+
+  row_condition:set({ label = { string = condition_label ~= "" and condition_label or "-" } })
+  row_temp:set({ label = { string = format_temp_c(current_data.temp) } })
+  row_feels:set({ label = { string = format_temp_c(current_data.feels) } })
+  row_humidity:set({ label = { string = format_humidity(current_data.humidity) } })
+  row_wind:set({ label = { string = format_wind(current_data.wind) } })
+  row_pressure:set({ label = { string = format_pressure(current_data.pressure) } })
+
+  row_sunrise:set({ label = { string = format_time_local(current_data.sunrise, current_data.tz_offset) } })
+  row_sunset:set({ label = { string = format_time_local(current_data.sunset, current_data.tz_offset) } })
+
+  local off = tonumber(current_data.tz_offset) or 0
+  local sign = (off >= 0) and "+" or "-"
+  local abs = math.abs(off)
+  local hh = math.floor(abs / 3600)
+  local mm = math.floor((abs % 3600) / 60)
+  row_tz:set({ label = { string = string.format("UTC%s%02d:%02d", sign, hh, mm) } })
+end
+
+local function maybe_reverse_geocode(lat, lon, opts)
+  opts = opts or {}
+  local force = opts.force == true
+
+  if not weather_popup.is_showing() then return end
+  lat = lat and tostring(lat) or ""
+  lon = lon and tostring(lon) or ""
+  if lat == "" or lon == "" then return end
+
+  set_location_state(lat, lon, nil)
+
+  if not force and current_location_label and current_location_label ~= "" then
+    return
+  end
+  if geocode_in_flight then return end
+
   local now = os.time()
-  local is_day = (now >= (data.sunrise or 0)) and (now < (data.sunset or 0))
-  local icon = owm_icon_for(data.id, is_day)
-  local temp_str = tostring(math.floor((data.temp or 0) + 0.5)) .. "°"
-  weather:set({ icon = { string = icon, color = colors.white }, label = temp_str })
-  update_popup_contents()
-end
+  if now - last_geocode_attempt < 10 then return end
+  last_geocode_attempt = now
 
--- Fix 2a: Correct write_weather_cache to include lat/lon
-local function write_weather_cache(data)
-  local ts = os.time()
-  local line = table.concat({
-    ts,
-    tostring(math.floor((data.temp or 0) + 0.5)),
-    tostring(data.id or 800),
-    data.desc or "",
-    tostring(data.sunrise or 0),
-    tostring(data.sunset or 0),
-    data.tz or "",
-    string.format("%.1f", data.wind or 0),
-    tostring(data.humidity or 0),
-    tostring(data.pressure or 0),
-    tostring(math.floor((data.feels or 0) + 0.5)),
-    -- Added: store location info for right-click use
-    tostring(data.lat or 0),
-    tostring(data.lon or 0)
-  }, "|")
-  write_file(weather_cache, line)
-end
-
--- Fix 2b: Correct try_read_weather_cache to read lat/lon
-local function try_read_weather_cache()
-  local cached = read_file(weather_cache)
-  if not cached or cached == "" then return nil end
-  local parts = split(trim_newline(cached), "|")
-  -- Changed: now must be 13 fields (ts + 10 data + lat + lon)
-  if #parts < 13 then return nil end
-  local ts = tonumber(parts[1] or 0) or 0
-  if os.time() - ts >= weather_cache_ttl then return nil end
-  
-  -- Rebuild psv of 10 weather fields (parts 2-11)
-  local p = {}
-  -- Changed: loop to 11 (the 10th data field)
-  for i = 2, 11 do p[#p+1] = parts[i] end
-  local data = parse_weather_psv(table.concat(p, "|"))
-  
-  if not data then return nil end
-  
-  -- Added: reattach lat/lon to cached object
-  data.lat = parts[12]
-  data.lon = parts[13]
-  
-  return data
-end
-
-local function do_fetch(lat, lon, api_key)
-  local url = build_onecall_url(lat, lon, api_key)
-  exec(jxa_fetch_onecall(url), function(out)
-    out = trim_newline(out or "")
-    local data = parse_weather_psv(out)
-    if not data then return end
-    data.lat = lat
-    data.lon = lon
-    write_weather_cache(data)
-    apply_weather_to_ui(data)
+  geocode_in_flight = true
+  reverse_geocode_label(lat, lon, function(label)
+    geocode_in_flight = false
+    label = tostring(label or "")
+    if label == "" then return end
+    if current_location_lat ~= lat or current_location_lon ~= lon then return end
+    set_location_state(lat, lon, label)
+    write_location_cache(lat, lon, label)
+    update_popup(true)
   end)
 end
 
+local function apply_weather(data)
+  current_error = nil
+  current_data = data
+
+  if not data then
+    set_error("Unavailable")
+    update_popup(true)
+    return
+  end
+
+  local now = os.time()
+  local is_day = (now >= (data.sunrise or 0)) and (now < (data.sunset or 0))
+  local icon = owm_icon_for(data.id, is_day)
+  set_widget(icon, colors.white, format_temp_c(data.temp))
+  update_popup(false)
+end
+
+local refresh_token = 0
 local function refresh(force)
+  if _G.SKETCHYBAR_SUSPENDED then return end
+  refresh_token = refresh_token + 1
+  local token = refresh_token
+
   if not force then
     local cached = try_read_weather_cache()
     if cached then
-      current_data = cached
-      -- Use cached location label if available
-      local loc_cached = read_file(location_cache)
-      if loc_cached and loc_cached ~= "" then
-        local parts = split(trim_newline(loc_cached), "|")
-        if #parts >= 4 then current_location_label = parts[4] end
-      end
-      apply_weather_to_ui(cached)
+      hydrate_location_label_from_cache(cached.lat, cached.lon)
+      apply_weather(cached)
+      maybe_reverse_geocode(cached.lat, cached.lon, { force = false })
       return
     end
   end
 
+  current_data = nil
+  current_error = nil
+  update_popup(false)
+
   get_api_key(function(key)
+    if token ~= refresh_token then return end
     if not key then
-      weather:set({ icon = { string = "⚠️", color = colors.red } })
-      weather:set({ label = "API" })
+      set_error("Missing API key")
+      update_popup(true)
       return
     end
+
     resolve_location(function(loc)
+      if token ~= refresh_token then return end
       if not loc then
-        weather:set({ icon = { string = "⚠️", color = colors.red } })
-        weather:set({ label = "LOC" })
+        set_error("Location unavailable")
+        update_popup(true)
         return
       end
-      current_location_label = (loc.label ~= "" and loc.label or nil)
-      do_fetch(loc.lat, loc.lon, key)
+
+      set_location_state(loc.lat, loc.lon, loc.label)
+      update_popup(true)
+      maybe_reverse_geocode(loc.lat, loc.lon, { force = force })
+
+      local url = build_weather_url(loc.lat, loc.lon, key)
+      sbar.exec(jxa_fetch_current(url), function(out)
+        if token ~= refresh_token then return end
+        out = trim_newline(out or "")
+        local data = parse_weather_psv(out)
+        if not data then
+          set_error("Fetch failed")
+          update_popup(true)
+          return
+        end
+        data.lat = loc.lat
+        data.lon = loc.lon
+        data.ts = os.time()
+        write_weather_cache(data)
+        apply_weather(data)
+      end)
     end)
   end)
 end
 
--- Click handlers
-local function on_click(env)
+-- Click handling (battery-style):
+-- - Left click: toggle popup
+-- - Right click: open Apple Weather app
+local function weather_on_click(env)
+  if env.BUTTON == "right" then
+    sbar.exec("open -a \"Weather\" >/dev/null 2>&1", function() end)
+    return
+  end
   if env.BUTTON ~= "left" then return end
-  -- left click: toggle popup; fill contents on show
+
   if weather_popup.is_showing() then
     weather_popup.hide()
-  else
-    weather_popup.show(update_popup_contents)
+    return
   end
+
+  weather_popup.show(function()
+    update_popup(true)
+    refresh(false)
+  end)
 end
 
-weather:subscribe("mouse.clicked", on_click)
-action_openweather:subscribe("mouse.clicked", function(env)
+weather:subscribe("mouse.clicked", weather_on_click)
+
+-- Header click = force refresh (ignore TTL).
+weather_popup.title_item:subscribe("mouse.clicked", function(env)
   if env.BUTTON ~= "left" then return end
-  local lat = current_data and current_data.lat or nil
-  local lon = current_data and current_data.lon or nil
-  if lat and lon then
-    local map_url = "https://openweathermap.org/weathermap?basemap=map&cities=true&layer=temperature&lat=" .. lat .. "&lon=" .. lon .. "&zoom=10"
-    exec("open \"" .. map_url .. "\"")
-  else
-    exec("open \"https://openweathermap.org\"")
-  end
+  refresh(true)
 end)
-action_apple_weather:subscribe("mouse.clicked", function(env)
-  if env.BUTTON ~= "left" then return end
-  exec("open -a \"Weather\"")
+
+-- Event-driven + low-frequency fallback.
+weather:subscribe({ "forced", "routine", "wifi_change", "system_woke" }, function(_)
+  refresh(false)
 end)
-title_item:subscribe("mouse.clicked", function(_)
-  -- Clear caches and clear popup contents immediately
-  cond_item:set({ label = "—" })
-  temp_item:set({ label = "—" })
-  feels_item:set({ label = "—" })
-  humidity_item:set({ label = "—" })
-  wind_item:set({ label = "—" })
-  pressure_item:set({ label = "—" })
-  tz_item:set({ label = "—" })
-  sunrise_item:set({ label = "—" })
-  sunset_item:set({ label = "—" })
-  title_item:set({ label = (current_location_label or "—") .. " " .. icons.refresh })
-  current_data = nil
-  sbar.exec("/bin/zsh -lc 'rm -f " .. weather_cache .. " " .. location_cache .. "'", function()
-    refresh(true)
-  end)
-end)
-weather_popup.add_close_row()
 
--- Periodic updates and initial paint (hourly)
-weather:set({ updates = true, update_freq = weather_cache_ttl })
-
-weather:subscribe("routine", function(_) refresh(false) end)
-
+-- Initial paint.
+set_widget("☁️", colors.white, "--°C")
 refresh(true)
+
+

@@ -1,4 +1,11 @@
 #include <Carbon/Carbon.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <math.h>
 
 void ax_init() {
   const void *keys[] = { kAXTrustedCheckOptionPrompt };
@@ -109,11 +116,75 @@ void ax_print_menu_options(AXUIElementRef app) {
   }
 }
 
+static AXUIElementRef ax_get_extra_item_for_pid(pid_t target_pid, const double *xs, int xs_count, bool owner_only) {
+  AXUIElementRef app = AXUIElementCreateApplication(target_pid);
+  if (!app) return NULL;
+
+  AXUIElementRef result = NULL;
+  CFTypeRef extras = NULL;
+  CFArrayRef children_ref = NULL;
+
+  AXError error = AXUIElementCopyAttributeValue(app,
+                                                kAXExtrasMenuBarAttribute,
+                                                &extras                   );
+  if (error == kAXErrorSuccess && extras) {
+    error = AXUIElementCopyAttributeValue(extras,
+                                          kAXVisibleChildrenAttribute,
+                                          (CFTypeRef*)&children_ref   );
+    if (error == kAXErrorSuccess && children_ref) {
+      uint32_t count = CFArrayGetCount(children_ref);
+      if (count > 0) {
+        if (!xs || xs_count <= 0) {
+          result = (AXUIElementRef)CFRetain(CFArrayGetValueAtIndex(children_ref, 0));
+        } else {
+          const double threshold = 12.0;
+          double best_delta = 1e9;
+          AXUIElementRef best = NULL;
+          for (uint32_t i = 0; i < count; i++) {
+            AXUIElementRef item = CFArrayGetValueAtIndex(children_ref, i);
+            CFTypeRef position_ref = NULL;
+            if (AXUIElementCopyAttributeValue(item, kAXPositionAttribute, &position_ref) != kAXErrorSuccess || !position_ref) {
+              continue;
+            }
+            CGPoint position = CGPointZero;
+            AXValueGetValue(position_ref, kAXValueCGPointType, &position);
+            CFRelease(position_ref);
+
+            for (int j = 0; j < xs_count; j++) {
+              double delta = fabs(position.x - xs[j]);
+              if (delta < best_delta) {
+                best_delta = delta;
+                best = item;
+              }
+            }
+          }
+          if (best && best_delta <= threshold) {
+            result = (AXUIElementRef)CFRetain(best);
+          } else if (best && owner_only) {
+            result = (AXUIElementRef)CFRetain(best);
+          }
+        }
+      }
+    }
+  }
+
+  if (children_ref) CFRelease(children_ref);
+  if (extras) CFRelease(extras);
+  CFRelease(app);
+  return result;
+}
+
 AXUIElementRef ax_get_extra_menu_item(char* alias) {
+  if (!alias || !*alias) return NULL;
+  bool owner_only = strchr(alias, ',') == NULL;
+
   pid_t pid = 0;
-  CGRect bounds = CGRectNull;
+  double match_x[32];
+  int match_x_count = 0;
+
   CFArrayRef window_list = CGWindowListCopyWindowInfo(kCGWindowListOptionAll,
                                                       kCGNullWindowID        );
+  if (!window_list) return NULL;
   char owner_buffer[256];
   char name_buffer[256];
   char buffer[512];
@@ -133,7 +204,9 @@ AXUIElementRef ax_get_extra_menu_item(char* alias) {
     CFDictionaryRef bounds_ref = CFDictionaryGetValue(dictionary,
                                                       kCGWindowBounds);
 
-    if (!name_ref || !owner_ref || !owner_pid_ref || !layer_ref || !bounds_ref)
+    if (!owner_ref || !owner_pid_ref || !layer_ref || !bounds_ref)
+      continue;
+    if (!owner_only && !name_ref)
       continue;
 
     long long int layer = 0;
@@ -144,80 +217,77 @@ AXUIElementRef ax_get_extra_menu_item(char* alias) {
                      &owner_pid                     );
 
     if (layer != 0x19) continue;
-    bounds = CGRectNull;
+    CGRect bounds = CGRectNull;
     if (!CGRectMakeWithDictionaryRepresentation(bounds_ref, &bounds)) continue;
     CFStringGetCString(owner_ref,
                        owner_buffer,
                        sizeof(owner_buffer),
                        kCFStringEncodingUTF8);
 
-    CFStringGetCString(name_ref,
-                       name_buffer,
-                       sizeof(name_buffer),
-                       kCFStringEncodingUTF8);
-    snprintf(buffer, sizeof(buffer), "%s,%s", owner_buffer, name_buffer);
+    bool match = false;
+    if (owner_only) {
+      match = strcmp(owner_buffer, alias) == 0;
+    } else {
+      CFStringGetCString(name_ref,
+                         name_buffer,
+                         sizeof(name_buffer),
+                         kCFStringEncodingUTF8);
+      snprintf(buffer, sizeof(buffer), "%s,%s", owner_buffer, name_buffer);
+      match = strcmp(buffer, alias) == 0;
+    }
 
-    if (strcmp(buffer, alias) == 0) {
+    if (match) {
       pid = owner_pid;
-      break;
+      if (match_x_count < (int)(sizeof(match_x) / sizeof(match_x[0]))) {
+        match_x[match_x_count++] = bounds.origin.x;
+      }
+      if (!owner_only) break;
     }
   }
   CFRelease(window_list);
-  if (!pid) return NULL;
 
-  AXUIElementRef app = AXUIElementCreateApplication(pid);
-  if (!app) return NULL;
-  AXUIElementRef result = NULL;
-  CFTypeRef extras = NULL;
-  CFArrayRef children_ref = NULL;
-  AXError error = AXUIElementCopyAttributeValue(app,
-                                                kAXExtrasMenuBarAttribute,
-                                                &extras                   );
-  if (error == kAXErrorSuccess) {
-    error = AXUIElementCopyAttributeValue(extras,
-                                          kAXVisibleChildrenAttribute,
-                                          (CFTypeRef*)&children_ref   );
-
-    if (error == kAXErrorSuccess) {
-      uint32_t count = CFArrayGetCount(children_ref);
-      for (uint32_t i = 0; i < count; i++) {
-        AXUIElementRef item = CFArrayGetValueAtIndex(children_ref, i);
-        CFTypeRef position_ref = NULL;
-        CFTypeRef size_ref = NULL;
-        AXUIElementCopyAttributeValue(item, kAXPositionAttribute,
-                                            &position_ref        );
-        AXUIElementCopyAttributeValue(item, kAXSizeAttribute,
-                                            &size_ref        );
-        if (!position_ref || !size_ref) continue;
-
-        CGPoint position = CGPointZero;
-        AXValueGetValue(position_ref, kAXValueCGPointType, &position);
-        CGSize size = CGSizeZero;
-        AXValueGetValue(size_ref, kAXValueCGSizeType, &size);
-        CFRelease(position_ref);
-        CFRelease(size_ref);
-        // The offset is exactly 8 on macOS Sonoma...
-        // printf("%f %f\n", position.x, bounds.origin.x);
-        if (error == kAXErrorSuccess
-            && fabs(position.x - bounds.origin.x) <= 10) {
-          result = item;
-          break;
-        }
-      }
+  if (pid) {
+    AXUIElementRef item = ax_get_extra_item_for_pid(pid, match_x, match_x_count, owner_only);
+    if (item) return item;
+    if (owner_only) {
+      item = ax_get_extra_item_for_pid(pid, NULL, 0, owner_only);
+      if (item) return item;
     }
   }
 
-  CFRelease(app);
-  return result;
+  if (!owner_only) return NULL;
+
+  // Fallback: resolve PID by app name and click its first extra.
+  ProcessSerialNumber psn = {0, kNoProcess};
+  while (GetNextProcess(&psn) == noErr) {
+    CFStringRef proc_name = NULL;
+    if (CopyProcessName(&psn, &proc_name) != noErr || !proc_name) continue;
+
+    char proc_buf[256];
+    proc_buf[0] = '\0';
+    CFStringGetCString(proc_name, proc_buf, sizeof(proc_buf), kCFStringEncodingUTF8);
+    CFRelease(proc_name);
+    if (proc_buf[0] == '\0') continue;
+
+    if (strcasecmp(proc_buf, alias) != 0) continue;
+
+    pid_t found = 0;
+    if (GetProcessPID(&psn, &found) == noErr && found > 0) {
+      AXUIElementRef item = ax_get_extra_item_for_pid(found, NULL, 0, owner_only);
+      if (item) return item;
+    }
+  }
+
+  return NULL;
 }
 
 extern int SLSMainConnectionID();
 extern void SLSSetMenuBarVisibilityOverrideOnDisplay(int cid, int did, bool enabled);
 extern void SLSSetMenuBarVisibilityOverrideOnDisplay(int cid, int did, bool enabled);
 extern void SLSSetMenuBarInsetAndAlpha(int cid, double u1, double u2, float alpha);
-void ax_select_menu_extra(char* alias) {
+int ax_select_menu_extra(char* alias) {
   AXUIElementRef item = ax_get_extra_menu_item(alias);
-  if (!item) return;
+  if (!item) return 2;
   SLSSetMenuBarInsetAndAlpha(SLSMainConnectionID(), 0, 1, 0.0);
   SLSSetMenuBarVisibilityOverrideOnDisplay(SLSMainConnectionID(), 0, true);
   SLSSetMenuBarInsetAndAlpha(SLSMainConnectionID(), 0, 1, 0.0);
@@ -225,6 +295,7 @@ void ax_select_menu_extra(char* alias) {
   SLSSetMenuBarVisibilityOverrideOnDisplay(SLSMainConnectionID(), 0, false);
   SLSSetMenuBarInsetAndAlpha(SLSMainConnectionID(), 0, 1, 1.0);
   CFRelease(item);
+  return 0;
 }
 
 extern void _SLPSGetFrontProcess(ProcessSerialNumber* psn);
@@ -252,6 +323,7 @@ int main (int argc, char **argv) {
     if (!app) return 1;
     ax_print_menu_options(app);
     CFRelease(app);
+    return 0;
   } else if (argc == 3 && strcmp(argv[1], "-s") == 0) {
     int id = 0;
     if (sscanf(argv[2], "%d", &id) == 1) {
@@ -259,7 +331,10 @@ int main (int argc, char **argv) {
       if (!app) return 1;
       ax_select_menu_option(app, id);
       CFRelease(app);
-    } else ax_select_menu_extra(argv[2]);
+      return 0;
+    } else {
+      return ax_select_menu_extra(argv[2]);
+    }
   }
-  return 0;
+  return 1;
 }

@@ -1,83 +1,180 @@
 local colors = require("colors")
 local settings = require("settings")
-local app_icons = require("app_icons")
 
 local spaces = {}
 
-local active_space = nil
-local space_icons = {}
+-- Battery-style Spaces:
+-- - Shows "Space ID" + a user-defined name.
+-- - Left click: switch Space (via Mission Control shortcut).
+-- - Right click: rename Space (persisted under states/).
+--
+-- NOTE: macOS Spaces have no native names; we keep a local mapping.
+
+local spaces_count_helper_path = os.getenv("HOME") .. "/.config/sketchybar/helpers/spaces_count/bin/spaces_count"
+
+-- Keep inter-widget spacing consistent with other compact widgets (wifi ↔ battery).
+local group_gap = (settings.paddings or 3) * 3
+
+local function detect_space_count()
+  local p = io.popen(string.format("%q 2>/dev/null", spaces_count_helper_path))
+  if not p then return 10 end
+  local out = p:read("*a") or ""
+  p:close()
+  local n = tonumber(out:match("(%d+)"))
+  if not n then return 10 end
+  if n < 1 then return 1 end
+  if n > 10 then return 10 end
+  return n
+end
+
+local space_count = detect_space_count()
+
+local state_dir = os.getenv("HOME") .. "/.config/sketchybar/states"
+local names_state_path = state_dir .. "/spaces_names.lua"
+
+local function ensure_state_dir()
+  os.execute('mkdir -p "' .. state_dir .. '"')
+end
+
+-- Default labels. Right-click a Space to override these.
+-- Use "" to hide a label.
+local default_space_names = {
+  [1] = "DEV",
+  [2] = "WEB",
+  [3] = "CHAT",
+  [4] = "MAIL",
+  [5] = "DOCS",
+  [6] = "MEDIA",
+  [7] = "OPS",
+  [8] = "NOTE",
+  [9] = "MISC",
+  [10] = "TMP",
+}
+
+local function load_user_space_names()
+  local chunk = loadfile(names_state_path, "t", {})
+  if not chunk then return {} end
+  local ok, data = pcall(chunk)
+  if not ok or type(data) ~= "table" then return {} end
+
+  local out = {}
+  for key, value in pairs(data) do
+    local idx = tonumber(key)
+    if idx and idx >= 1 and idx <= 10 and type(value) == "string" then
+      out[idx] = value
+    end
+  end
+  return out
+end
+
+local function save_user_space_names(map)
+  ensure_state_dir()
+  local lines = { "return {" }
+  for i = 1, 10 do
+    local value = map[i]
+    if value ~= nil then
+      lines[#lines + 1] = string.format("  [%d] = %q,", i, tostring(value))
+    end
+  end
+  lines[#lines + 1] = "}"
+  local file = io.open(names_state_path, "w")
+  if not file then return false end
+  file:write(table.concat(lines, "\n"))
+  file:write("\n")
+  file:close()
+  return true
+end
+
+local user_space_names = load_user_space_names()
+
+local function get_space_name(idx)
+  if user_space_names[idx] ~= nil then return user_space_names[idx] end
+  return default_space_names[idx] or ""
+end
+
+local function applescript_escape(value)
+  return tostring(value):gsub("\\", "\\\\"):gsub("\"", "\\\"")
+end
+
+local function prompt_space_name(space_index, current_name, on_done)
+  local msg = applescript_escape("Rename Space " .. tostring(space_index))
+  local def = applescript_escape(current_name or "")
+  local title = applescript_escape("Spaces")
+  local cmd = "/bin/zsh -lc 'osascript <<EOF\n" ..
+    "tell application \"System Events\"\n" ..
+    "  activate\n" ..
+    "  display dialog \"" .. msg .. "\" default answer \"" .. def .. "\" with title \"" .. title .. "\"\n" ..
+    "  text returned of result\n" ..
+    "end tell\n" ..
+    "EOF'"
+  sbar.exec(cmd, function(result, exit_code)
+    if tonumber(exit_code) ~= 0 then if on_done then on_done(nil) end return end
+    local name = tostring(result or ""):gsub("%s+$", ""):gsub("^%s+", "")
+    if on_done then on_done(name) end
+  end)
+end
 
 -- Mapping from space index to macOS key codes for Command+Number switching
 local keycodes_by_space = { [1] = 18, [2] = 19, [3] = 20, [4] = 21, [5] = 23, [6] = 22, [7] = 26, [8] = 28, [9] = 25, [10] = 29 }
 
-for i = 10, 1, -1 do
+for i = space_count, 1, -1 do
+  local initial_name = get_space_name(i)
   local space = sbar.add("space", "space." .. i, {
     position = "right",
     space = i,
     icon = {
-      font = { family = settings.font.numbers },
+      font = {
+        family = settings.font.numbers,
+        style = settings.font.style_map["Semibold"],
+        size = 13.0,
+      },
       string = i,
-      padding_left = 15,
-      padding_right = 8,
+      padding_left = 10,
+      padding_right = 6,
       color = colors.white,
       highlight_color = colors.red,
     },
     label = {
-      padding_right = 20,
+      padding_right = 10,
       color = colors.grey,
       highlight_color = colors.white,
-      font = "sketchybar-app-font:Regular:16.0",
+      font = { family = settings.font.text, style = settings.font.style_map["Semibold"], size = 12.0 },
+      string = initial_name,
     },
-    padding_right = 1,
-    padding_left = 1,
-    background = {
-      color = colors.with_alpha(colors.bg1, 0.2),
-      border_width = 1,
-      height = 28,
-      border_color = colors.with_alpha(colors.bg2, 0.2),
-    },
-    popup = { background = { border_width = 5, border_color = colors.with_alpha(colors.bg2, 0.2) } }
+    padding_right = (i == space_count) and group_gap or 0,
+    padding_left = 0,
+    -- Keep this lightweight: avoid extra brackets/padding items and avoid drawing
+    -- backgrounds (Mission Control tends to stress rendering/event updates).
+    background = { drawing = false },
+    popup = { drawing = false },
   })
 
   spaces[i] = space
 
-  -- Single item bracket for space items to achieve double border on highlight
-  local space_bracket = sbar.add("bracket", { space.name }, {
-    position = "right",
-    background = {
-      color = colors.with_alpha(colors.bg1, 0.2),
-      border_color = colors.with_alpha(colors.bg2, 0.2),
-      height = 28,
-      border_width = 2
-    }
-  })
-
-  -- Padding space
-  sbar.add("space", "space.padding." .. i, {
-    position = "right",
-    space = i,
-    script = "",
-    width = settings.group_paddings,
-  })
-
+  local was_selected = false
   space:subscribe("space_change", function(env)
     local selected = env.SELECTED == "true"
-    local color = selected and colors.grey or colors.bg2
+    if selected == was_selected then return end
+    was_selected = selected
     space:set({
-      icon = { highlight = selected, },
-      label = { highlight = selected, string = selected and (space_icons[i] or "") or "" },
-      background = { border_color = colors.with_alpha(colors.bg2, 0.2) }
-    })
-    if selected then
-      active_space = i
-    end
-    space_bracket:set({
-      background = { border_color = colors.with_alpha(colors.bg2, 0.2) }
+      icon = { highlight = selected },
+      label = { highlight = selected },
     })
   end)
 
   space:subscribe("mouse.clicked", function(env)
     local sid = tonumber(env.SID)
+    if env.BUTTON == "right" then
+      local idx = sid or i
+      prompt_space_name(idx, get_space_name(idx), function(new_name)
+        if new_name == nil then return end
+        user_space_names[idx] = new_name
+        save_user_space_names(user_space_names)
+        space:set({ label = { string = new_name } })
+      end)
+      return
+    end
+    if env.BUTTON ~= "left" then return end
     local keycode = sid and keycodes_by_space[sid] or nil
     if keycode ~= nil then
       sbar.exec("osascript -e 'tell application \"System Events\" to key code " .. keycode .. " using command down'")
@@ -86,68 +183,4 @@ for i = 10, 1, -1 do
 
 end
 
-local space_window_observer = sbar.add("item", {
-  drawing = false,
-  updates = true,
-})
-
-space_window_observer:subscribe("space_windows_change", function(env)
-  local icon_line = ""
-  local no_app = true
-  for app, count in pairs(env.INFO.apps) do
-    no_app = false
-    local lookup = app_icons[app]
-    local icon = ((lookup == nil) and app_icons["Default"] or lookup)
-    icon_line = icon_line .. icon
-  end
-
-  if (no_app) then
-    icon_line = ""
-  end
-  sbar.animate("tanh", 0.2, function()
-    local space_index = tonumber(env.INFO.space)
-    if space_index ~= nil and spaces[space_index] ~= nil then
-      space_icons[space_index] = icon_line
-      if space_index == active_space then
-        spaces[space_index]:set({ label = { string = icon_line } })
-      end
-    end
-  end)
-end)
-
--- Consume one-shot C helper snapshot (space_scan)
-space_window_observer:subscribe("space_snapshot", function(env)
-  local i = tonumber(env.space)
-  local icon_line = ""
-  if env.apps and env.apps ~= "" then
-    for token in string.gmatch(env.apps, "[^|]+") do
-      local app = string.match(token, "([^:]+)") or token
-      local lookup = app_icons[app]
-      local icon = ((lookup == nil) and app_icons["Default"] or lookup)
-      icon_line = icon_line .. icon
-    end
-  else
-    icon_line = ""
-  end
-  if i ~= nil and spaces[i] ~= nil then
-    space_icons[i] = icon_line
-    if i == active_space then
-      spaces[i]:set({ label = { string = icon_line } })
-    end
-  end
-end)
-
--- On space change, rescan once to refresh labels for all spaces
-space_window_observer:subscribe("space_change", function(_)
-  sbar.exec("$CONFIG_DIR/helpers/space_scan/bin/space_scan")
-end)
-
--- Initialize labels on startup
-for i = 1, 10 do
-  if spaces[i] ~= nil then
-    spaces[i]:set({ label = { string = "" } })
-  end
-end
-
--- Kick off initial snapshot
-sbar.exec("$CONFIG_DIR/helpers/space_scan/bin/space_scan")
+-- Per-space app icon rendering removed for performance and to avoid CPU spikes during Space switches.

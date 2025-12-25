@@ -320,4 +320,13 @@ return {
 	["YouTube Music"] = ":youtube_music:",
 	["Mimestream"] = ":mimestream:",
 	["Emacs VTerm"] = ":terminal:",
+	-- Custom additions:
+	-- Verified ligatures in `~/Library/Fonts/sketchybar-app-font.ttf` via `strings(1)`.
+	["Raycast"] = ":raycast:",
+	-- The app font does not include a dedicated Time Machine or Ubuntu icon; pick close defaults.
+	["Time Machine"] = ":clock:",
+	["Ubuntu"] = ":terminal:",
+	-- Fallback utility icons (no dedicated ligatures in the font).
+	["Synergy"] = ":terminal:",
+	["Lock"] = ":gear:",
 }

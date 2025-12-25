@@ -13,7 +13,7 @@ make -C helpers
 ## data sources
 
 - CPU usage: `host_statistics` via `helpers/system_stats/cpu.h`
-- Memory usage: `host_statistics64` + `sysctl hw.memsize`
+- Memory usage: `host_statistics64` + `sysctl hw.memsize` (used = active + wired + compressed pages)
 - GPU usage: `IOAccelerator` registry `PerformanceStatistics` (Device/Renderer Utilization)
 
 ## temperature values

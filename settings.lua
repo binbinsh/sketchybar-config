@@ -4,6 +4,9 @@ return {
 
   icons = "NerdFont", -- available: NerdFont, sf-symbols
 
+  -- Shortcuts (right-side compact icon chunk)
+  shortcuts_icon_size = 15.0,
+
   -- Font configuration (JetBrains Mono Nerd Font)
   font = {
     text = "JetBrainsMono Nerd Font", -- Used for text

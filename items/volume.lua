@@ -2,140 +2,121 @@ local colors = require("colors")
 local icons = require("icons")
 local settings = require("settings")
 
-local popup_width = 250
+-- Battery-style volume (compact bar item) + performance-first behavior:
+-- - Click opens SoundSource (no popup)
+-- - Right-click opens Sound settings
+-- - Event-driven updates + scroll throttling
 
-local volume_percent = sbar.add("item", "widgets.volume1", {
-  position = "right",
-  icon = { drawing = false },
-  label = {
-    string = "??%",
-    padding_left = -1,
-    font = { family = settings.font.numbers }
-  },
-})
+local function clamp_int(n, lo, hi)
+  n = tonumber(n)
+  if not n then return lo end
+  if n < lo then return lo end
+  if n > hi then return hi end
+  return math.floor(n + 0.5)
+end
 
-local volume_icon = sbar.add("item", "widgets.volume2", {
+local function icon_for_volume(volume)
+  if volume > 60 then return icons.volume._100 end
+  if volume > 30 then return icons.volume._66 end
+  if volume > 10 then return icons.volume._33 end
+  if volume > 0 then return icons.volume._10 end
+  return icons.volume._0
+end
+
+local last_volume = nil
+local last_icon = nil
+local last_color = nil
+
+local volume_item = sbar.add("item", "widgets.volume", {
   position = "right",
-  padding_right = -1,
   icon = {
     string = icons.volume._100,
-    width = 0,
-    align = "left",
     color = colors.grey,
     font = {
       style = settings.font.style_map["Regular"],
-      size = 14.0,
+      size = 15.0,
     },
   },
   label = {
-    width = 25,
-    align = "left",
-    font = {
-      family = settings.font.icons,
-      style = settings.font.style_map["Regular"],
-      size = 14.0,
-    },
+    string = "--",
+    font = { family = settings.font.numbers },
+    width = 32,
+    padding_left = 2,
+    padding_right = 6,
   },
+  padding_left = 0,
+  padding_right = 0,
 })
 
-local volume_bracket = sbar.add("bracket", "widgets.volume.bracket", {
-  volume_icon.name,
-  volume_percent.name
-}, {
-  background = {
-    color = colors.with_alpha(colors.bg1, 0.2),
-    border_color = colors.with_alpha(colors.bg2, 0.2),
-    border_width = 2,
-  },
-  popup = { align = "center" }
-})
-
-sbar.add("item", "widgets.volume.padding", {
-  position = "right",
-  width = settings.group_paddings
-})
-
-local volume_slider = sbar.add("slider", popup_width, {
-  position = "popup." .. volume_bracket.name,
-  slider = {
-    highlight_color = colors.blue,
-    background = {
-      height = 6,
-      corner_radius = 3,
-      color = colors.bg2,
-    },
-    knob= {
-      string = "􀀁",
-      drawing = true,
-    },
-  },
-  background = { color = colors.bg1, height = 2, y_offset = -20 },
-  click_script = 'osascript -e "set volume output volume $PERCENTAGE"'
-})
-
-volume_percent:subscribe("volume_change", function(env)
-  local volume = tonumber(env.INFO)
-  local icon = icons.volume._0
-  if volume > 60 then
-    icon = icons.volume._100
-  elseif volume > 30 then
-    icon = icons.volume._66
-  elseif volume > 10 then
-    icon = icons.volume._33
-  elseif volume > 0 then
-    icon = icons.volume._10
-  end
-
-  local lead = ""
-  if volume < 10 then
-    lead = "0"
-  end
-
-  volume_icon:set({ label = icon })
-  volume_percent:set({ label = lead .. volume .. "%" })
-  volume_slider:set({ slider = { percentage = volume } })
+volume_item:subscribe("volume_change", function(env)
+  if _G.SKETCHYBAR_SUSPENDED then return end
+  local v = clamp_int(env.INFO, 0, 100)
+  local icon = icon_for_volume(v)
+  local color = (v == 0) and colors.grey or colors.white
+  if last_volume == v and last_icon == icon and last_color == color then return end
+  last_volume = v
+  last_icon = icon
+  last_color = color
+  volume_item:set({ icon = { string = icon, color = color }, label = { string = tostring(v) } })
 end)
 
-local function volume_collapse_details()
-  local query = volume_bracket:query() or {}
-  if not query.popup then return end
-  local drawing = query.popup.drawing == "on"
-  if not drawing then return end
-  volume_bracket:set({ popup = { drawing = false } })
-  sbar.remove('/volume.device\\.*/')
+local function open_soundsource()
+  -- Prefer clicking the menu bar extra (fast, no focus steal).
+  sbar.exec("$CONFIG_DIR/helpers/menus/bin/menus -s SoundSource >/dev/null 2>&1", function(_, exit_code)
+    if exit_code == 0 then return end
+    -- If SoundSource isn't running, launch it and retry once.
+    sbar.exec('/usr/bin/open -gja "SoundSource" >/dev/null 2>&1', function() end)
+    sbar.delay(0.1, function()
+      sbar.exec("$CONFIG_DIR/helpers/menus/bin/menus -s SoundSource >/dev/null 2>&1", function() end)
+    end)
+  end)
 end
 
-local function volume_toggle_details(env)
-  if env.BUTTON ~= "left" then return end
-  -- Open SoundSource menubar popover similar to backup script
-  sbar.exec([[osascript <<'APPLESCRIPT' >/dev/null 2>&1
-tell application "System Events"
-  if not (exists process "SoundSource") then
-    tell application "SoundSource" to launch
-  end if
-  tell application process "SoundSource"
-    click menu bar item 1 of menu bar 2
-    if (exists window 1) then
-      set p to position of window 1
-      set x to item 1 of p
-      set y to item 2 of p
-      set position of window 1 to {x, y + 32}
-    end if
-  end tell
-end tell
-APPLESCRIPT
-]])
-end
-
+local scroll_pending = 0
+local scroll_armed = false
 local function volume_scroll(env)
-  local delta = env.INFO.delta
-  if not (env.INFO.modifier == "ctrl") then delta = delta * 10.0 end
+  if _G.SKETCHYBAR_SUSPENDED then return end
+  local info = env and env.INFO or {}
+  local delta = tonumber(info.delta) or 0
+  if delta == 0 then return end
+  if info.modifier ~= "ctrl" then
+    delta = delta * 10
+  end
 
-  sbar.exec('osascript -e "set volume output volume (output volume of (get volume settings) + ' .. delta .. ')"')
+  -- Coalesce high-frequency scroll events to avoid spawning many osascript processes.
+  scroll_pending = scroll_pending + delta
+  if scroll_armed then return end
+  scroll_armed = true
+
+  sbar.delay(0.08, function()
+    scroll_armed = false
+    local pending = tonumber(scroll_pending) or 0
+    scroll_pending = 0
+    if pending == 0 then return end
+    sbar.exec('osascript -e "set volume output volume (output volume of (get volume settings) + ' .. tostring(pending) .. ')"')
+  end)
 end
 
-volume_icon:subscribe("mouse.clicked", volume_toggle_details)
-volume_icon:subscribe("mouse.scrolled", volume_scroll)
-volume_percent:subscribe("mouse.clicked", volume_toggle_details)
-volume_percent:subscribe("mouse.exited.global", volume_collapse_details)
-volume_percent:subscribe("mouse.scrolled", volume_scroll)
+volume_item:subscribe("mouse.clicked", function(env)
+  if env.BUTTON == "right" then
+    sbar.exec("/usr/bin/open 'x-apple.systempreferences:com.apple.preference.sound' >/dev/null 2>&1", function() end)
+    return
+  end
+  if env.BUTTON ~= "left" then return end
+  open_soundsource()
+end)
+volume_item:subscribe("mouse.scrolled", volume_scroll)
+
+-- Initial sync (best effort).
+sbar.exec([[osascript -e 'output volume of (get volume settings)']], function(out, exit_code)
+  if exit_code ~= 0 then return end
+  local v = tonumber(tostring(out or ""):match("(%d+)"))
+  if not v then return end
+  local vv = clamp_int(v, 0, 100)
+  local icon = icon_for_volume(vv)
+  local color = (vv == 0) and colors.grey or colors.white
+  last_volume = vv
+  last_icon = icon
+  last_color = color
+  volume_item:set({ icon = { string = icon, color = color }, label = { string = tostring(vv) } })
+end)

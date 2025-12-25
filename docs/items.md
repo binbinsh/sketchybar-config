@@ -1,62 +1,78 @@
 # Items
 
-Detailed reference for items and widgets defined in `items/`.
-
-- [Overview](#overview)
-- [Widgets and Integrations](#widgets-and-integrations)
-- [Shortcuts](#shortcuts-shortcutslua)
-- [Volume](#volume-volumelua)
-- [GitHub](#github-githublua)
-- [System Stats](#system-stats-system_statslua)
-- [Weather](#weather-weatherlua)
-- [WeChat](#wechat-wechatlua)
+This document describes the items defined in `items/` and loaded by `items/init.lua`.
 
 ## Overview
 
-- Front App (`front_app.lua`): shows the active app name; click toggles the `menus` and `spaces` brackets via the `swap_menus_and_spaces` event.
-- Pomodoro (`pomodoro.lua`): minimal timer; left-click start/pause, right-click resets the current phase; auto-advances with notifications.
-- Widgets: app integrations and interactive widgets are documented below.
+Most items are implemented as **compact, bracket-less widgets** (for performance and consistent spacing). Some items use the shared centered popup helper (`center_popup.lua`).
 
-## Widgets and Integrations
+There is also a global performance guard (`mission_control.lua`) that sets `_G.SKETCHYBAR_SUSPENDED` during Space transitions; many items skip expensive updates while that flag is true.
 
-Quick reference for the app integrations and interactive widgets in this directory.
+## Loaded by default (`items/init.lua`)
 
-## Shortcuts (`shortcuts.lua`)
+- `items/apple.lua`
+  - Apple logo on the left; click opens the Apple menu (via `helpers/menus/bin/menus -s 0`).
+  - Uses a bracket background to visually mask the native menu bar behind it.
 
-- A row of shortcut icons (Clipboard, Dictionary, LM Studio, 1Password, Quantumult X, Synergy, Time Machine, Ubuntu, WeChat) managed in one widget file.
-- Left-click each icon to open its own centered popup; right-click does nothing.
+- `items/menus.lua`
+  - Renders the current app menu items on the left; click selects a menu entry.
+  - Updates on `front_app_switched` with a short debounce for stability.
+  - Driven by the native helper `helpers/menus/bin/menus`.
 
-## Volume (`volume.lua`)
+- `items/spaces.lua`
+  - Space switcher (right side): shows Space number + a user-defined name.
+  - Left-click switches Space (Command+Number); right-click renames and persists to `states/spaces_names.lua`.
+  - Uses the native helper `helpers/spaces_count/bin/spaces_count` to detect the Space count.
 
-- Shows the current output volume and an icon.
-- Click opens SoundSource; right-click opens Sound settings.
+- `items/system_stats.lua`
+  - CPU/GPU graphs with temperatures + memory graph.
+  - Driven by the native helper `helpers/system_stats/bin/system_stats` (event: `system_stats_update`).
+  - See `docs/system_stats.md` for details.
 
-## GitHub (`github.lua`)
+- `items/weather.lua`
+  - Weather icon + temperature (°C). Left-click toggles a centered popup; right-click opens the macOS Weather app.
+  - Popup title click forces refresh (ignores TTL).
+  - Requires an OpenWeather API key in Keychain and uses the location helper.
+    - Store key: `security add-generic-password -a "$USER" -s OPENWEATHERMAP_API_KEY -w '<YOUR_API_KEY>' -U`
+    - Location helper details: `docs/location.md`
+  - Caches under `~/.cache/sketchybar/` (TTL configurable via `WEATHER_CACHE_TTL`, `WEATHER_LOCATION_TTL`).
 
-- Shows a GitHub badge for new issues created since you last opened issues, plus a popup with repo/issue/PR counts.
-- Left-click toggles the popup; right-click opens GitHub Issues and clears the new-issue badge.
-- Setup: install GitHub CLI and run `gh auth login`.
-- Ensure auth scopes include `repo` for private repos and `read:org` if you include orgs with private repos.
-- Optional: set `GITHUB_ORGS` (comma-separated) to include org-owned repositories in the counts.
+- `items/wifi.lua`
+  - Wi‑Fi throughput widget (stacked upload/download numbers). Left-click toggles a centered popup; right-click opens Network settings.
+  - Throughput is event-driven via `helpers/network_load/bin/network_load` (event: `network_update`).
+  - Popup details are fetched via `helpers/network_info/.../SketchyBarNetworkInfoHelper`.
+  - If SSID is missing, it may request Location permission (through the location helper).
+  - Optional env: `WIFI_INTERFACE` (defaults to `en0`).
 
-## WeChat (`wechat.lua`)
+- `items/battery.lua`
+  - Battery percent widget. Left-click toggles a centered popup with detailed battery telemetry; right-click opens Battery settings.
+  - Driven by the native helper `helpers/battery_info/bin/battery_info`.
 
-- Shows unread count from the Dock badge; click opens or activates WeChat.
-- Setup: install the macOS app (`com.tencent.xinWeChat`), enable App Icon Badges (System Settings -> Notifications -> WeChat), and allow `osascript` in Accessibility (System Settings -> Privacy & Security -> Accessibility).
+- `items/volume.lua`
+  - Output volume widget. Scroll changes volume (events are coalesced); left-click opens SoundSource; right-click opens Sound settings.
+  - Uses `helpers/menus/bin/menus` to click the SoundSource menu extra when possible.
 
-## System Stats (`system_stats.lua`)
+- `items/calendar.lua`
+  - Date/time widget (updates frequently, but avoids shell polling).
+  - Left-click opens Control Center.
 
-- Shows CPU/GPU usage with current temperatures plus memory usage, driven by the native helper in `helpers/system_stats`.
+- `items/pomodoro.lua`
+  - Pomodoro timer with stacked labels. Left-click start/pause; right-click reset; middle-click edits durations.
+  - State is persisted to `states/pomodoro_state.lua`.
 
-## Weather (`weather.lua`)
+- `items/1password.lua`
+  - 1Password launcher. Left-click triggers 1Password Quick Access; right-click opens the app.
 
-- Uses OpenWeather One Call API 3.0 for current conditions; shows condition, temperature, feels like, humidity, wind, pressure, time zone, sunrise, and sunset.
-- Left-click toggles a centered popup titled with your location (`<place>` lat, lon) and a refresh affordance; click the title to refresh immediately; right-click opens the OpenWeather map for your coordinates (falls back to the macOS Weather app).
-- Auto-refreshes hourly; coordinates come from the location helper (see `location.md`) and are reverse-geocoded via OpenStreetMap.
-- Setup: register an API key at https://openweathermap.org/api (free tier is 1,000 calls/day), then store it in Keychain:
+## Optional items (not loaded by default)
+
+- `items/lock.lua`
+  - Lock-screen shortcut (Command+Control+Q).
+  - To enable, add `require("items.lock")` to `items/init.lua`.
+
+## Building native helpers
+
+From the config root:
 
 ```bash
-security add-generic-password -a "$USER" -s OPENWEATHERMAP_API_KEY -w '<YOUR_API_KEY>' -U
+make -C helpers
 ```
-
-The widget reads it with `security find-generic-password -a "$USER" -s OPENWEATHERMAP_API_KEY -w`. New keys can take 1-2 hours to activate.
