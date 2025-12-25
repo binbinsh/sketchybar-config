@@ -2,6 +2,7 @@ local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
 local center_popup = require("center_popup")
+local scamalytics = require("items.scamalytics")
 
 -- Native event provider for network throughput ("network_update") on the primary
 -- interface. This keeps the widget event-driven and avoids frequent shell polling.
@@ -160,22 +161,38 @@ local value_width = popup_width - name_width
 local function add_row(key, title, opts)
   opts = opts or {}
   return sbar.add("item", "wifi.popup." .. key, {
-  position = popup_pos,
-  width = popup_width,
+    position = popup_pos,
+    width = popup_width,
     drawing = opts.drawing,
-  icon = {
-    align = "left",
+    icon = {
+      align = "left",
       string = title,
       width = name_width,
       font = { family = settings.font.text, style = settings.font.style_map["Semibold"], size = 12.0 },
-  },
-  label = {
-    align = "right",
+    },
+    label = {
+      align = "right",
       string = "-",
       width = value_width,
       font = { family = settings.font.numbers, style = settings.font.style_map["Regular"], size = 12.0 },
       max_chars = 64,
     },
+    background = { drawing = false },
+  })
+end
+
+local function add_section(key, title)
+  return sbar.add("item", "wifi.popup.section." .. key, {
+    position = popup_pos,
+    width = popup_width,
+    drawing = false,
+    icon = {
+      align = "left",
+      string = title,
+      width = popup_width,
+      font = { family = settings.font.text, style = settings.font.style_map["Semibold"], size = 12.0 },
+    },
+    label = { drawing = false },
     background = { drawing = false },
   })
 end
@@ -202,6 +219,14 @@ local row_tx_rate = add_row("tx_rate", "Transmit Rate", { drawing = false })
 local row_tx_power = add_row("tx_power", "Transmit Power", { drawing = false })
 local row_mcs = add_row("mcs", "MCS Index", { drawing = false })
 local row_cc = add_row("cc", "Country Code", { drawing = false })
+
+local scamalytics_popup = scamalytics.attach_popup({
+  add_row = add_row,
+  add_section = add_section,
+  is_showing = wifi_popup.is_showing,
+  host = os.getenv("SCAMALYTICS_API_HOST"),
+  cache_ttl = 900,
+})
 
 wifi_popup.add_close_row({ label = "close x" })
 
@@ -241,6 +266,11 @@ local function update_connection_state(force_popup)
       row_status:set({ label = { string = current_connected and "Connected" or "Disconnected" } })
       row_ip:set({ label = { string = (ip ~= "") and ip or "-" } })
       update_popup_rates(true)
+      sbar.delay(0.05, function()
+        if scamalytics_popup and scamalytics_popup.update then
+          scamalytics_popup.update(force_popup)
+        end
+      end)
     end
   end)
 end

@@ -122,6 +122,7 @@ for i = space_count, 1, -1 do
   local space = sbar.add("space", "space." .. i, {
     position = "right",
     space = i,
+    ignore_association = "on", -- Draw spaces on all displays
     icon = {
       font = {
         family = settings.font.numbers,

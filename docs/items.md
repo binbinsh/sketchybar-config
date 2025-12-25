@@ -42,6 +42,9 @@ There is also a global performance guard (`mission_control.lua`) that sets `_G.S
   - Throughput is event-driven via `helpers/network_load/bin/network_load` (event: `network_update`).
   - Popup details are fetched via `helpers/network_info/.../SketchyBarNetworkInfoHelper`.
   - If SSID is missing, it may request Location permission (through the location helper).
+  - Scamalytics IP risk (public IP) is shown when both `SCAMALYTICS_API_KEY` and `SCAMALYTICS_API_USER` are present in Keychain.
+    - Store key: `security add-generic-password -a "$USER" -s "SCAMALYTICS_API_KEY" -w "<YOUR_API_KEY>" -U`
+    - Store user: `security add-generic-password -a "$USER" -s "SCAMALYTICS_API_USER" -w "<YOUR_API_USER>" -U`
   - Optional env: `WIFI_INTERFACE` (defaults to `en0`).
 
 - `items/battery.lua`
