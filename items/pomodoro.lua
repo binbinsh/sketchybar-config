@@ -271,8 +271,8 @@ end
 
 update_display = function()
   local phase_tag = "F"
-  if phase == "short" then phase_tag = "SB" end
-  if phase == "long" then phase_tag = "LB" end
+  if phase == "short" then phase_tag = "S" end
+  if phase == "long" then phase_tag = "L" end
 
   local top = string.format("%s %s", progress_text(), phase_tag)
 
