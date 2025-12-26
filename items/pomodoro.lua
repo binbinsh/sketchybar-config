@@ -34,6 +34,8 @@ local IDLE_TICK = 300
 
 local last_ui_top = nil
 local last_ui_bottom = nil
+local last_ui_top_color = nil
+local last_ui_bottom_color = nil
 local last_ui_freq = nil
 
 -- Keep this tight to avoid large gaps to neighboring widgets.
@@ -278,6 +280,8 @@ update_display = function()
 
   local bottom = format_time(remaining)
   local freq = running and RUN_TICK or IDLE_TICK
+  local top_color = running and colors.white or colors.grey
+  local bottom_color = running and colors.white or colors.grey
 
   local props = nil
 
@@ -291,14 +295,22 @@ update_display = function()
     pomodoro:set(props)
   end
 
-  if last_ui_top ~= top then
-    pomodoro_top:set({ label = { string = top } })
+  if last_ui_top ~= top or last_ui_top_color ~= top_color then
+    local label = {}
+    if last_ui_top ~= top then label.string = top end
+    if last_ui_top_color ~= top_color then label.color = top_color end
+    pomodoro_top:set({ label = label })
     last_ui_top = top
+    last_ui_top_color = top_color
   end
 
-  if last_ui_bottom ~= bottom then
-    pomodoro_bottom:set({ label = { string = bottom } })
+  if last_ui_bottom ~= bottom or last_ui_bottom_color ~= bottom_color then
+    local label = {}
+    if last_ui_bottom ~= bottom then label.string = bottom end
+    if last_ui_bottom_color ~= bottom_color then label.color = bottom_color end
+    pomodoro_bottom:set({ label = label })
     last_ui_bottom = bottom
+    last_ui_bottom_color = bottom_color
   end
 
   if running then
