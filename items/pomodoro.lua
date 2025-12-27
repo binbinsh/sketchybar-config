@@ -280,8 +280,8 @@ update_display = function()
 
   local bottom = format_time(remaining)
   local freq = running and RUN_TICK or IDLE_TICK
-  local top_color = running and colors.red or colors.grey
-  local bottom_color = running and colors.red or colors.grey
+  local top_color = running and colors.green or colors.white
+  local bottom_color = running and colors.green or colors.white
 
   local props = nil
 
