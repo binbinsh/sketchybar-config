@@ -7,20 +7,13 @@ local cpu_gpu_width = 44
 local mem_width = 28
 local trailing_gap = 16 -- Match the visual gap of other compact widgets (e.g. battery ↔ volume)
 
-local function usage_color(value)
-  if not value then return colors.blue end
-  if value >= 80 then return colors.red end
-  if value >= 60 then return colors.orange end
-  if value >= 40 then return colors.yellow end
-  return colors.blue
-end
-
-local function make_graph(name, icon_text, color, width, padding_right)
+local function make_graph(name, icon_text, width, padding_right)
   return sbar.add("graph", name, width, {
     position = "right",
-    graph = { color = color },
+    graph = { color = colors.red },
     icon = {
       string = icon_text,
+      color = colors.green,
       font = {
         family = settings.font.text,
         style = settings.font.style_map["Bold"],
@@ -30,6 +23,7 @@ local function make_graph(name, icon_text, color, width, padding_right)
     },
     label = {
       string = "--",
+      color = colors.white,
       font = {
         family = settings.font.numbers,
         style = settings.font.style_map["Bold"],
@@ -48,9 +42,9 @@ local function make_graph(name, icon_text, color, width, padding_right)
 end
 
 -- Add a small trailing gap so `system_stats` doesn't visually stick to `weather`.
-local mem = make_graph("widgets.sys.mem", "MEM", colors.green, mem_width, trailing_gap)
-local gpu = make_graph("widgets.sys.gpu", "GPU", colors.magenta, cpu_gpu_width, 0)
-local cpu = make_graph("widgets.sys.cpu", "CPU", colors.blue, cpu_gpu_width, 0)
+local mem = make_graph("widgets.sys.mem", "MEM", mem_width, trailing_gap)
+local gpu = make_graph("widgets.sys.gpu", "GPU", cpu_gpu_width, 0)
+local cpu = make_graph("widgets.sys.cpu", "CPU", cpu_gpu_width, 0)
 
 cpu:subscribe("system_stats_update", function(env)
   if _G.SKETCHYBAR_SUSPENDED then return end
@@ -80,24 +74,13 @@ cpu:subscribe("system_stats_update", function(env)
     gpu_label = string.format("%s --C", gpu_label)
   end
 
-  cpu:set({
-    graph = { color = usage_color(cpu_total) },
-    icon = { color = usage_color(cpu_total) },
-    label = cpu_label,
-  })
-
-  gpu:set({
-    graph = { color = usage_color(gpu_util) },
-    icon = { color = usage_color(gpu_util) },
-    label = gpu_label,
-  })
+  cpu:set({ label = cpu_label })
+  gpu:set({ label = gpu_label })
 
   local mem_percent = tonumber(env.mem_used_percent)
   if mem_percent and mem_percent >= 0 then
     mem:push({ mem_percent / 100.0 })
     mem:set({
-      graph = { color = usage_color(mem_percent) },
-      icon = { color = usage_color(mem_percent) },
       label = string.format("%d%%", mem_percent),
     })
   else

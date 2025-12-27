@@ -31,7 +31,7 @@ local volume_item = sbar.add("item", "widgets.volume", {
   position = "right",
   icon = {
     string = icons.volume._100,
-    color = colors.grey,
+    color = colors.green,
     font = {
       style = settings.font.style_map["Regular"],
       size = 15.0,
@@ -52,7 +52,7 @@ volume_item:subscribe("volume_change", function(env)
   if _G.SKETCHYBAR_SUSPENDED then return end
   local v = clamp_int(env.INFO, 0, 100)
   local icon = icon_for_volume(v)
-  local color = (v == 0) and colors.grey or colors.white
+  local color = colors.green
   if last_volume == v and last_icon == icon and last_color == color then return end
   last_volume = v
   last_icon = icon
@@ -114,7 +114,7 @@ sbar.exec([[osascript -e 'output volume of (get volume settings)']], function(ou
   if not v then return end
   local vv = clamp_int(v, 0, 100)
   local icon = icon_for_volume(vv)
-  local color = (vv == 0) and colors.grey or colors.white
+  local color = colors.green
   last_volume = vv
   last_icon = icon
   last_color = color

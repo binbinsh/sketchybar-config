@@ -69,9 +69,6 @@ local debounce_id = 0
 local timer_armed = false
 local latest_app = ""
 
-local menu_inflight = false
-local menu_pending = false
-
 local function trim(s)
   return (s or ""):gsub("^%s+", ""):gsub("%s+$", "")
 end
@@ -96,20 +93,9 @@ end
 
 local function update_menus()
   if _G.SKETCHYBAR_SUSPENDED then return end
-  if menu_inflight then
-    menu_pending = true
-    return
-  end
-
-  menu_inflight = true
   sbar.exec("$CONFIG_DIR/helpers/menus/bin/menus -l", function(menus, exit_code)
-    menu_inflight = false
     if tonumber(exit_code) ~= 0 then return end
     render_menus(menus)
-    if menu_pending then
-      menu_pending = false
-      update_menus()
-    end
   end)
 end
 
