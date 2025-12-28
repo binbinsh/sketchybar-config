@@ -16,7 +16,7 @@ local MENU_LABEL_PADDING = 6    -- inner padding for each label
 
 -- "Geek" panel theme (opaque enough to mask the native macOS menu bar text).
 local MENU_PANEL_BG = colors.cyber
-local MENU_PANEL_BORDER = colors.magenta
+local MENU_PANEL_BORDER = colors.green
 
 local max_items = 15
 local menu_items = {}

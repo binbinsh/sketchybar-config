@@ -4,7 +4,7 @@ local settings = require("settings")
 
 -- Geek panel theme (match `items/menus.lua`).
 local APPLE_PANEL_BG = colors.cyber
-local APPLE_PANEL_BORDER = colors.magenta
+local APPLE_PANEL_BORDER = colors.green
 
 -- Padding item required because of bracket
 sbar.add("item", { width = 5 })

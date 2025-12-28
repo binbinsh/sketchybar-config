@@ -16,7 +16,7 @@ local function make_graph(name, icon_text, width, padding_right)
       color = colors.green,
       font = {
         family = settings.font.text,
-        style = settings.font.style_map["Bold"],
+        style = settings.font.style_map["Heavy"],
         size = 9.0,
       },
       padding_right = 4,
