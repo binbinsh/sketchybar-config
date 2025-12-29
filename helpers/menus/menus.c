@@ -1,3 +1,4 @@
+#include <ApplicationServices/ApplicationServices.h>
 #include <Carbon/Carbon.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -24,11 +25,68 @@ void ax_init() {
   if (!trusted) exit(1);
 }
 
+static bool ax_try_action(AXUIElementRef element, CFStringRef action) {
+  return AXUIElementPerformAction(element, action) == kAXErrorSuccess;
+}
+
+static bool ax_get_center_point(AXUIElementRef element, CGPoint *out_point) {
+  if (!out_point) return false;
+  CFTypeRef position_ref = NULL;
+  CFTypeRef size_ref = NULL;
+  if (AXUIElementCopyAttributeValue(element,
+                                    kAXPositionAttribute,
+                                    &position_ref) != kAXErrorSuccess || !position_ref) {
+    return false;
+  }
+  if (AXUIElementCopyAttributeValue(element,
+                                    kAXSizeAttribute,
+                                    &size_ref) != kAXErrorSuccess || !size_ref) {
+    CFRelease(position_ref);
+    return false;
+  }
+
+  CGPoint position = CGPointZero;
+  CGSize size = CGSizeZero;
+  AXValueGetValue(position_ref, kAXValueCGPointType, &position);
+  AXValueGetValue(size_ref, kAXValueCGSizeType, &size);
+  CFRelease(position_ref);
+  CFRelease(size_ref);
+
+  out_point->x = position.x + (size.width * 0.5);
+  out_point->y = position.y + (size.height * 0.5);
+  return true;
+}
+
+static void ax_click_point(CGPoint point) {
+  CGEventRef down = CGEventCreateMouseEvent(NULL,
+                                            kCGEventLeftMouseDown,
+                                            point,
+                                            kCGMouseButtonLeft);
+  CGEventRef up = CGEventCreateMouseEvent(NULL,
+                                          kCGEventLeftMouseUp,
+                                          point,
+                                          kCGMouseButtonLeft);
+  if (down) {
+    CGEventPost(kCGHIDEventTap, down);
+    CFRelease(down);
+  }
+  if (up) {
+    CGEventPost(kCGHIDEventTap, up);
+    CFRelease(up);
+  }
+}
+
 void ax_perform_click(AXUIElementRef element) {
   if (!element) return;
   AXUIElementPerformAction(element, kAXCancelAction);
   usleep(150000);
-  AXUIElementPerformAction(element, kAXPressAction);
+  if (ax_try_action(element, kAXPressAction)) return;
+  if (ax_try_action(element, kAXShowMenuAction)) return;
+
+  CGPoint center = CGPointZero;
+  if (ax_get_center_point(element, &center)) {
+    ax_click_point(center);
+  }
 }
 
 CFStringRef ax_get_title(AXUIElementRef element) {
@@ -113,6 +171,112 @@ void ax_print_menu_options(AXUIElementRef app) {
     }
     if (menubars_ref) CFRelease(menubars_ref);
     if (children_ref) CFRelease(children_ref);
+  }
+}
+
+static bool remember_value(char seen[][512], int *seen_count, const char *value) {
+  if (!value || !*value) return false;
+  for (int i = 0; i < *seen_count; i++) {
+    if (strcmp(seen[i], value) == 0) return false;
+  }
+  if (*seen_count >= 256) return false;
+  strncpy(seen[*seen_count], value, sizeof(seen[*seen_count]) - 1);
+  seen[*seen_count][sizeof(seen[*seen_count]) - 1] = '\0';
+  (*seen_count)++;
+  return true;
+}
+
+void ax_print_menu_extras() {
+  char seen[256][512];
+  int seen_count = 0;
+
+  ProcessSerialNumber psn = {0, kNoProcess};
+  while (GetNextProcess(&psn) == noErr) {
+    pid_t pid = 0;
+    if (GetProcessPID(&psn, &pid) != noErr || pid <= 0) continue;
+
+    AXUIElementRef app = AXUIElementCreateApplication(pid);
+    if (!app) continue;
+
+    CFTypeRef extras = NULL;
+    if (AXUIElementCopyAttributeValue(app,
+                                      kAXExtrasMenuBarAttribute,
+                                      &extras) != kAXErrorSuccess || !extras) {
+      CFRelease(app);
+      continue;
+    }
+
+    CFArrayRef children_ref = NULL;
+    if (AXUIElementCopyAttributeValue(extras,
+                                      kAXVisibleChildrenAttribute,
+                                      (CFTypeRef*)&children_ref) != kAXErrorSuccess || !children_ref) {
+      CFRelease(extras);
+      CFRelease(app);
+      continue;
+    }
+
+    CFIndex count = CFArrayGetCount(children_ref);
+    if (count <= 0) {
+      CFRelease(children_ref);
+      CFRelease(extras);
+      CFRelease(app);
+      continue;
+    }
+
+    CFStringRef proc_name = NULL;
+    if (CopyProcessName(&psn, &proc_name) != noErr || !proc_name) {
+      CFRelease(children_ref);
+      CFRelease(extras);
+      CFRelease(app);
+      continue;
+    }
+
+    char owner_buffer[256];
+    owner_buffer[0] = '\0';
+    Boolean ok = CFStringGetCString(proc_name,
+                                    owner_buffer,
+                                    sizeof(owner_buffer),
+                                    kCFStringEncodingUTF8);
+    CFRelease(proc_name);
+    if (!ok || owner_buffer[0] == '\0') {
+      CFRelease(children_ref);
+      CFRelease(extras);
+      CFRelease(app);
+      continue;
+    }
+
+    if (remember_value(seen, &seen_count, owner_buffer)) {
+      printf("%s\n", owner_buffer);
+    }
+
+    char buffer[512];
+    for (CFIndex i = 0; i < count; i++) {
+      AXUIElementRef item = CFArrayGetValueAtIndex(children_ref, i);
+      CFTypeRef title = ax_get_title(item);
+      if (!title || CFGetTypeID(title) != CFStringGetTypeID()) {
+        if (title) CFRelease(title);
+        continue;
+      }
+
+      char name_buffer[256];
+      name_buffer[0] = '\0';
+      if (CFStringGetCString((CFStringRef)title,
+                             name_buffer,
+                             sizeof(name_buffer),
+                             kCFStringEncodingUTF8)) {
+        if (name_buffer[0] != '\0') {
+          snprintf(buffer, sizeof(buffer), "%s,%s", owner_buffer, name_buffer);
+          if (remember_value(seen, &seen_count, buffer)) {
+            printf("%s\n", buffer);
+          }
+        }
+      }
+      CFRelease(title);
+    }
+
+    CFRelease(children_ref);
+    CFRelease(extras);
+    CFRelease(app);
   }
 }
 
@@ -314,7 +478,7 @@ AXUIElementRef ax_get_front_app() {
 
 int main (int argc, char **argv) {
   if (argc == 1) {
-    printf("Usage: %s [-l | -s id/alias ]\n", argv[0]);
+    printf("Usage: %s [-l | -s id/alias | -x ]\n", argv[0]);
     exit(0);
   }
   ax_init();
@@ -323,6 +487,9 @@ int main (int argc, char **argv) {
     if (!app) return 1;
     ax_print_menu_options(app);
     CFRelease(app);
+    return 0;
+  } else if (strcmp(argv[1], "-x") == 0) {
+    ax_print_menu_extras();
     return 0;
   } else if (argc == 3 && strcmp(argv[1], "-s") == 0) {
     int id = 0;

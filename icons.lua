@@ -8,6 +8,7 @@ local icons = {
     gear = "􀍟",
     cpu = "􀫥",
     clipboard = "􀉄",
+    adapter = "",
 
     -- App launchers and utilities
     lm_studio = "􀞏",
@@ -62,6 +63,7 @@ local icons = {
     gear = "",
     cpu = "",
     clipboard = "", -- fa-paste (clipboard) in Nerd Font
+    adapter = "", -- fa-plug
 
     -- App launchers and utilities
     lm_studio = "", -- code
