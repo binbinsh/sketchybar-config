@@ -16,7 +16,7 @@ There is also a global performance guard (`mission_control.lua`) that sets `_G.S
 
 - `items/menus.lua`
   - Renders the current app menu items on the left; click selects a menu entry.
-  - Updates on `front_app_switched` with a short debounce for stability.
+  - Updates on `front_app_switched` with debounce + short retries to avoid stale menus during app transitions (notably for some Electron apps).
   - Driven by the native helper `helpers/menus/bin/menus`.
 
 - `items/spaces.lua`
