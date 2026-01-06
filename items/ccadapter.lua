@@ -10,9 +10,9 @@ local function pick_env_or_setting(env_key, setting_key)
   return nil
 end
 
-local CC_ADAPTER_ALIAS = os.getenv("CC_ADAPTER_ALIAS") or "cc-adapter"
-local CC_ADAPTER_APP = os.getenv("CC_ADAPTER_APP") or "cc-adapter"
-local CC_ADAPTER_LAUNCH = "/Applications/CC\\ Adapter.app/Contents/MacOS/cc-adapter --show-tray"
+local CCADAPTER_ALIAS = os.getenv("CCADAPTER_ALIAS") or "ccadapter"
+local CCADAPTER_APP = os.getenv("CCADAPTER_APP") or "ccadapter"
+local CCADAPTER_LAUNCH = "/Applications/CCAdapter.app/Contents/MacOS/ccadapter --show-tray"
 local CONFIG_DIR = os.getenv("CONFIG_DIR") or (os.getenv("HOME") .. "/.config/sketchybar")
 local MENUS_BIN = CONFIG_DIR .. "/helpers/menus/bin/menus"
 
@@ -33,15 +33,15 @@ local function try_select_menu(alias, done)
   end)
 end
 
-local function launch_cc_adapter()
-  if CC_ADAPTER_LAUNCH and CC_ADAPTER_LAUNCH ~= "" then
-    sbar.exec(CC_ADAPTER_LAUNCH, function() end)
+local function launch_ccadapter()
+  if CCADAPTER_LAUNCH and CCADAPTER_LAUNCH ~= "" then
+    sbar.exec(CCADAPTER_LAUNCH, function() end)
     return
   end
-  sbar.exec("/usr/bin/open -gja " .. shell_quote(CC_ADAPTER_APP) .. " >/dev/null 2>&1", function() end)
+  sbar.exec("/usr/bin/open -gja " .. shell_quote(CCADAPTER_APP) .. " >/dev/null 2>&1", function() end)
 end
 
-local cc_adapter = sbar.add("item", "widgets.cc_adapter", {
+local ccadapter = sbar.add("item", "widgets.ccadapter", {
   position = "right",
   icon = {
     string = icons.adapter,
@@ -61,23 +61,23 @@ local cc_adapter = sbar.add("item", "widgets.cc_adapter", {
   updates = false,
 })
 
-local function open_cc_adapter_menu()
-  if CC_ADAPTER_LAUNCH and CC_ADAPTER_LAUNCH ~= "" then
-    sbar.exec(CC_ADAPTER_LAUNCH, function() end)
+local function open_ccadapter_menu()
+  if CCADAPTER_LAUNCH and CCADAPTER_LAUNCH ~= "" then
+    sbar.exec(CCADAPTER_LAUNCH, function() end)
     return
   end
-  try_select_menu(CC_ADAPTER_ALIAS, function(ok)
+  try_select_menu(CCADAPTER_ALIAS, function(ok)
     if ok then return end
-    launch_cc_adapter()
+    launch_ccadapter()
     sbar.delay(0.2, function()
-      try_select_menu(CC_ADAPTER_ALIAS, function() end)
+      try_select_menu(CCADAPTER_ALIAS, function() end)
     end)
   end)
 end
 
-cc_adapter:subscribe("mouse.clicked", function(env)
+ccadapter:subscribe("mouse.clicked", function(env)
   if env.BUTTON ~= "left" then return end
-  open_cc_adapter_menu()
+  open_ccadapter_menu()
 end)
 
-return cc_adapter
+return ccadapter

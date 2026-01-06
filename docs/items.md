@@ -66,7 +66,7 @@ There is also a global performance guard (`mission_control.lua`) that sets `_G.S
 - `items/1password.lua`
   - 1Password launcher. Left-click triggers 1Password Quick Access; right-click opens the app.
 
-- `items/cc_adapter.lua`
+- `items/ccadapter.lua`
   - CC Adapter menubar shortcut. Left-click opens the CC Adapter tray menu.
 
 ## Optional items (not loaded by default)
