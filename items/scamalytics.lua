@@ -10,6 +10,12 @@ local function trim(value)
   return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
+local function is_premium_field(value)
+  if value == nil then return false end
+  local str = tostring(value)
+  return str:lower():find("premium field", 1, true) ~= nil
+end
+
 local function normalize_host(host)
   host = trim(host)
   if host == "" then host = DEFAULT_HOST end
@@ -269,7 +275,7 @@ end
 
 local function set_opt_row(row, value)
   if not row then return end
-  if value and value ~= "" then
+  if value and value ~= "" and not is_premium_field(value) then
     row:set({ drawing = true, label = { string = tostring(value) } })
   else
     row:set({ drawing = false })
