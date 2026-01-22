@@ -12,7 +12,7 @@ return {
   cyber = 0xff1b102a,
 
   bar = {
-    bg = 0xd0363944,
+    bg = 0xff363944,
     border = 0xff2c2e34,
   },
   popup = {

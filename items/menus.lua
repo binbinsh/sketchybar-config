@@ -12,10 +12,6 @@ local SWITCH_DEBOUNCE_S = 0.45
 local MENU_ITEM_GAP = 2         -- spacing between items
 local MENU_LABEL_PADDING = 6    -- inner padding for each label
 
--- "Geek" panel theme (opaque enough to mask the native macOS menu bar text).
-local MENU_PANEL_BG = colors.cyber
-local MENU_PANEL_BORDER = colors.green
-
 local max_items = 15
 local menu_items = {}
 for i = 1, max_items, 1 do
@@ -44,12 +40,7 @@ end
 -- Keep the same pill geometry as the global default (height/corner/border).
 sbar.add("bracket", "menus.bracket", { '/menu\\..*/' }, {
   background = {
-    height = 28,
-    corner_radius = 9,
-    border_width = 2,
-    -- Not "black": use a lighter tint, still opaque enough to mask the native menu.
-    color = colors.with_alpha(MENU_PANEL_BG, 0.92),
-    border_color = colors.with_alpha(MENU_PANEL_BORDER, 0.90),
+    drawing = false,
   },
 })
 
