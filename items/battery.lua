@@ -3,16 +3,90 @@ local colors = require("colors")
 local settings = require("settings")
 local center_popup = require("center_popup")
 
--- Compact + efficient:
--- - No bracket/padding items
--- - Minimal width (no trailing "%")
--- - Event-driven updates with a low-frequency fallback
+-- Battery control popup with slider, graph, and interactive controls
+local config_path = os.getenv("HOME") .. "/.config/sketchybar"
+local state_file = config_path .. "/states/battery_control.lua"
+local battery_helper_path = config_path .. "/helpers/battery_info/bin/battery_info"
+local battery_control_path = config_path .. "/helpers/battery_control/bin/battery_control"
+
+-- State caching for main widget
 local last_charge = nil
 local last_charging = nil
 local last_icon = nil
 local last_color = nil
 
-local battery_helper_path = os.getenv("HOME") .. "/.config/sketchybar/helpers/battery_info/bin/battery_info"
+-- Maintain state (persisted)
+local maintain_state = {
+  enabled = false,
+  target = 80,
+  history = {},  -- Battery percentage history (max 144 points = 24h @ 10min)
+}
+
+-- Load persisted state
+local function load_state()
+  local f = io.open(state_file, "r")
+  if not f then return end
+  local content = f:read("*a")
+  f:close()
+  local fn = load("return " .. content)
+  if fn then
+    local ok, loaded = pcall(fn)
+    if ok and type(loaded) == "table" then
+      if loaded.target then maintain_state.target = loaded.target end
+      if loaded.enabled ~= nil then maintain_state.enabled = loaded.enabled end
+      if loaded.history then maintain_state.history = loaded.history end
+    end
+  end
+end
+
+-- Serialize table to Lua code
+local function serialize(t, indent)
+  indent = indent or ""
+  local parts = {}
+  parts[#parts + 1] = "{"
+  local next_indent = indent .. "  "
+  for k, v in pairs(t) do
+    local key_str
+    if type(k) == "number" then
+      key_str = ""
+    else
+      key_str = k .. " = "
+    end
+    local val_str
+    if type(v) == "table" then
+      val_str = serialize(v, next_indent)
+    elseif type(v) == "string" then
+      val_str = string.format("%q", v)
+    elseif type(v) == "boolean" then
+      val_str = v and "true" or "false"
+    else
+      val_str = tostring(v)
+    end
+    parts[#parts + 1] = next_indent .. key_str .. val_str .. ","
+  end
+  parts[#parts + 1] = indent .. "}"
+  return table.concat(parts, "\n")
+end
+
+-- Save state to file
+local function save_state()
+  local f = io.open(state_file, "w")
+  if not f then return end
+  f:write(serialize(maintain_state))
+  f:close()
+end
+
+-- Record battery percentage to history (called every 10 minutes)
+local function record_history(percent)
+  table.insert(maintain_state.history, percent)
+  -- Keep max 144 points (24 hours at 10-minute intervals)
+  while #maintain_state.history > 144 do
+    table.remove(maintain_state.history, 1)
+  end
+  save_state()
+end
+
+load_state()
 
 local function file_exists(path)
   local f = io.open(path, "r")
@@ -26,12 +100,53 @@ local function fetch_battery_info(callback)
     if callback then callback(nil, 1) end
     return
   end
-
   sbar.exec(battery_helper_path, function(info, exit_code)
     if callback then callback(info, exit_code) end
   end)
 end
 
+-- Fetch control status from battery_control helper
+local function fetch_control_status(callback)
+  if not file_exists(battery_control_path) then
+    if callback then callback(nil, 1) end
+    return
+  end
+  sbar.exec("sudo " .. battery_control_path .. " status", function(info, exit_code)
+    if callback then callback(info, exit_code) end
+  end)
+end
+
+-- Enable charging
+local function enable_charging(callback)
+  sbar.exec("sudo " .. battery_control_path .. " enable", function(_, exit_code)
+    if callback then callback(exit_code == 0) end
+  end)
+end
+
+-- Disable charging
+local function disable_charging(callback)
+  sbar.exec("sudo " .. battery_control_path .. " disable", function(_, exit_code)
+    if callback then callback(exit_code == 0) end
+  end)
+end
+
+-- Enable adapter (normal power from charger, disable forced discharge)
+-- Note: battery_control "adapter off" = disable_discharging (matches battery.sh)
+local function enable_adapter(callback)
+  sbar.exec("sudo " .. battery_control_path .. " adapter off", function(_, exit_code)
+    if callback then callback(exit_code == 0) end
+  end)
+end
+
+-- Disable adapter (force discharge even when plugged in)
+-- Note: battery_control "adapter on" = enable_discharging (matches battery.sh)
+local function disable_adapter(callback)
+  sbar.exec("sudo " .. battery_control_path .. " adapter on", function(_, exit_code)
+    if callback then callback(exit_code == 0) end
+  end)
+end
+
+-- Main battery widget
 local battery = sbar.add("item", "widgets.battery", {
   position = "right",
   icon = {
@@ -51,10 +166,11 @@ local battery = sbar.add("item", "widgets.battery", {
   update_freq = 600,
 })
 
+-- Popup setup
 local popup_width = 420
 local battery_popup = center_popup.create("battery.popup", {
   width = popup_width,
-  height = 620,
+  height = 780,
   popup_height = 26,
   title = "Battery",
   meta = "",
@@ -67,6 +183,7 @@ local popup_pos = battery_popup.position
 local name_width = 160
 local value_width = popup_width - name_width
 
+-- Helper to add info rows
 local function add_row(key, title)
   return sbar.add("item", "battery.popup." .. key, {
     position = popup_pos,
@@ -87,27 +204,89 @@ local function add_row(key, title)
   })
 end
 
+-- Helper to add control rows (clickable)
+local function add_control_row(key, title, initial_value)
+  local row = sbar.add("item", "battery.popup.ctrl." .. key, {
+    position = popup_pos,
+    width = popup_width,
+    icon = {
+      align = "left",
+      string = title,
+      width = name_width,
+      font = { family = settings.font.text, style = settings.font.style_map["Semibold"], size = 12.0 },
+    },
+    label = {
+      align = "right",
+      string = initial_value .. " [toggle]",
+      width = value_width,
+      font = { family = settings.font.numbers, style = settings.font.style_map["Regular"], size = 12.0 },
+      color = colors.blue,
+    },
+    background = { drawing = false },
+  })
+  return row
+end
+
+-- === POPUP CONTENT ===
+
+-- Current status section (most important info at top)
+battery_popup.add_section("status", "STATUS")
+
 local row_status = add_row("status", "Status")
 local row_percent = add_row("percent", "Charge")
 local row_power = add_row("power", "Power source")
 local row_time = add_row("time", "Time remaining")
-local row_cycles = add_row("cycles", "Cycle count")
+
+-- Power controls section
+battery_popup.add_section("controls", "POWER CONTROLS")
+
+local row_charging = add_control_row("charging", "Charging", "Enabled")
+local row_adapter = add_control_row("adapter", "Adapter", "Enabled")
+
+-- Charge limit section (slider + maintain toggle)
+battery_popup.add_section("limit", "CHARGE LIMIT")
+
+local maintain_slider = battery_popup.add_slider("maintain", {
+  highlight_color = colors.green,
+  percentage = maintain_state.target,
+})
+
+local row_maintain_target = add_row("maintain_target", "Target")
+row_maintain_target:set({ label = { string = maintain_state.target .. "%" } })
+
+local row_maintain = add_control_row("maintain", "Auto Maintain", maintain_state.enabled and "Active" or "Off")
+
+-- Battery details section
+battery_popup.add_section("details", "BATTERY DETAILS")
+
 local row_health = add_row("health", "Health")
+local row_cycles = add_row("cycles", "Cycle count")
 local row_capacity = add_row("capacity", "Capacity")
 local row_design = add_row("design", "Design / Nominal")
 local row_temp = add_row("temp", "Temperature")
-local row_electrical = add_row("electrical", "Voltage / Current")
+
+-- Electrical section
+battery_popup.add_section("electrical", "ELECTRICAL")
+
+local row_electrical = add_row("voltage_current", "Voltage / Current")
 local row_power_draw = add_row("power_draw", "Power draw")
 local row_cells = add_row("cells", "Cell voltages")
+
+-- Advanced section
+battery_popup.add_section("advanced", "ADVANCED")
+
 local row_soc = add_row("soc", "SoC (smart)")
 local row_pack = add_row("pack", "Pack reserve")
 local row_charger = add_row("charger", "Charger")
 local row_system = add_row("system", "System input")
-local row_adapter = add_row("adapter", "Adapter")
+local row_adapter_info = add_row("adapter_info", "Adapter info")
 local row_device = add_row("device", "Device / FW")
 local row_flags = add_row("flags", "Flags")
 local row_serial = add_row("serial", "Serial")
 
+battery_popup.add_close_row({ label = "close x" })
+
+-- Formatting helpers
 local function format_minutes(min)
   local n = tonumber(min)
   if not n or n <= 0 then return "-" end
@@ -175,7 +354,6 @@ end
 
 local function guess_not_charging_reason(info, n)
   if not n or n == 0 then return nil end
-
   local power = tostring(info.power_source or "")
   local percent = tonumber(info.percent)
   local is_charging = info.is_charging == true
@@ -183,7 +361,6 @@ local function guess_not_charging_reason(info, n)
   local charger_current = tonumber(info.charger_current_ma)
   local temp_c = tonumber(info.temperature_c)
 
-  -- Best-effort heuristic (Apple does not publicly document these bitmasks):
   if power == "AC" and not is_charging and (charger_current == nil or charger_current == 0) then
     if percent and percent >= 78 and percent <= 85 then
       return "hold-at-80%"
@@ -219,7 +396,6 @@ local function format_reason_mask(info, value, prefix)
   if prefix == "nr" then
     local hint = guess_not_charging_reason(info, n)
     if hint then
-      -- Hide the raw code for the common "hold at ~80%" case to reduce noise.
       if raw == "0x01000000/b24" then
         return prefix .. "=" .. hint
       end
@@ -310,10 +486,134 @@ local function format_flags(info)
   return table.concat(parts, " ")
 end
 
--- Footer: keep it simple (one close button at the bottom).
-battery_popup.add_close_row({ label = "close x" })
+-- Update control row states
+local function update_control_states()
+  fetch_control_status(function(info, exit_code)
+    if exit_code ~= 0 or type(info) ~= "table" then
+      row_charging:set({ label = { string = "Unavailable" } })
+      row_adapter:set({ label = { string = "Unavailable" } })
+      return
+    end
 
+    local charging_str = info.charging_enabled and "Enabled" or "Disabled"
+    local adapter_str = info.adapter_enabled and "Enabled" or "Disabled"
+    row_charging:set({ label = { string = charging_str .. " [toggle]" } })
+    row_adapter:set({ label = { string = adapter_str .. " [toggle]" } })
+  end)
 
+  local maintain_str = maintain_state.enabled and ("Active @ " .. maintain_state.target .. "%") or "Off"
+  row_maintain:set({ label = { string = maintain_str .. " [toggle]" } })
+end
+
+-- Toggle charging
+local function toggle_charging()
+  fetch_control_status(function(info, exit_code)
+    if exit_code ~= 0 or type(info) ~= "table" then return end
+    if info.charging_enabled then
+      disable_charging(function() update_control_states() end)
+    else
+      enable_charging(function() update_control_states() end)
+    end
+  end)
+end
+
+-- Toggle adapter
+local function toggle_adapter()
+  fetch_control_status(function(info, exit_code)
+    if exit_code ~= 0 or type(info) ~= "table" then return end
+    if info.adapter_enabled then
+      disable_adapter(function() update_control_states() end)
+    else
+      enable_adapter(function() update_control_states() end)
+    end
+  end)
+end
+
+-- Toggle maintain mode
+local function toggle_maintain()
+  maintain_state.enabled = not maintain_state.enabled
+  save_state()
+  update_control_states()
+end
+
+-- Set maintain target
+local function set_maintain_target(pct)
+  maintain_state.target = pct
+  row_maintain_target:set({ label = { string = pct .. "%" } })
+  save_state()
+  if maintain_state.enabled then
+    update_control_states()
+  end
+end
+
+-- Maintain loop - check and adjust charging
+-- Logic follows battery.sh maintain_synchronous:
+-- 1. At or above target: disable charging
+-- 2. Below (target - hysteresis): enable charging
+-- 3. Between: keep current state (avoid rapid cycling)
+local MAINTAIN_HYSTERESIS = 2  -- Same as battery.sh behavior
+
+local function check_and_maintain()
+  if not maintain_state.enabled then return end
+  if not file_exists(battery_control_path) then return end
+
+  fetch_battery_info(function(info, exit_code)
+    if exit_code ~= 0 or type(info) ~= "table" then return end
+
+    local percent = tonumber(info.percent)
+    if not percent then return end
+
+    -- Also check current charging state to avoid unnecessary commands
+    fetch_control_status(function(ctrl_info, ctrl_exit)
+      if ctrl_exit ~= 0 or type(ctrl_info) ~= "table" then return end
+
+      local charging_enabled = ctrl_info.charging_enabled
+
+      if percent >= maintain_state.target then
+        -- At or above target: stop charging if currently enabled
+        if charging_enabled then
+          disable_charging(function() end)
+        end
+      elseif percent < maintain_state.target - MAINTAIN_HYSTERESIS then
+        -- Below threshold: start charging if currently disabled
+        if not charging_enabled then
+          -- Enable charging and ensure adapter is on (not force-discharging)
+          enable_adapter(function()
+            enable_charging(function() end)
+          end)
+        end
+      end
+      -- Between (target - hysteresis) and target: maintain current state
+    end)
+  end)
+end
+
+-- Subscribe slider to drag events
+maintain_slider:subscribe("mouse.clicked", function(env)
+  local pct = math.floor(tonumber(env.PERCENTAGE) or maintain_state.target)
+  if pct < 20 then pct = 20 end
+  if pct > 100 then pct = 100 end
+  set_maintain_target(pct)
+  maintain_slider:set({ slider = { percentage = pct } })
+end)
+
+-- Subscribe control rows to click events
+row_charging:subscribe("mouse.clicked", function(env)
+  if env.BUTTON ~= "left" then return end
+  toggle_charging()
+end)
+
+row_adapter:subscribe("mouse.clicked", function(env)
+  if env.BUTTON ~= "left" then return end
+  toggle_adapter()
+end)
+
+row_maintain:subscribe("mouse.clicked", function(env)
+  if env.BUTTON ~= "left" then return end
+  toggle_maintain()
+end)
+
+-- Main widget update
 local function update_battery()
   if _G.SKETCHYBAR_SUSPENDED then return end
 
@@ -358,15 +658,37 @@ local function update_battery()
 
     battery:set({
       icon = { string = icon, color = color },
-      -- Compact: no "%" (monospace numbers makes this stable width)
       label = { string = tostring(charge_i) },
     })
   end)
 end
 
-battery:subscribe({ "forced", "routine", "power_source_change", "system_woke" }, update_battery)
+-- Routine update for maintain mode and history recording
+local history_counter = 0
+local function routine_update()
+  check_and_maintain()
+
+  -- Record history every 10 minutes (600 seconds / 60 second routine = 10 calls)
+  history_counter = history_counter + 1
+  if history_counter >= 10 then
+    history_counter = 0
+    fetch_battery_info(function(info, exit_code)
+      if exit_code ~= 0 or type(info) ~= "table" then return end
+      local percent = tonumber(info.percent)
+      if percent then
+        record_history(percent)
+      end
+    end)
+  end
+end
+
+battery:subscribe({ "forced", "routine", "power_source_change", "system_woke" }, function()
+  update_battery()
+  routine_update()
+end)
 update_battery()
 
+-- Popup click handler
 battery:subscribe("mouse.clicked", function(env)
   if env.BUTTON == "right" then
     sbar.exec("/usr/bin/open 'x-apple.systempreferences:com.apple.preference.battery' >/dev/null 2>&1", function() end)
@@ -379,7 +701,14 @@ battery:subscribe("mouse.clicked", function(env)
     return
   end
 
+  -- Set slider to current target
+  maintain_slider:set({ slider = { percentage = maintain_state.target } })
+
   battery_popup.show(function()
+    -- Update control states
+    update_control_states()
+
+    -- Fetch and display battery info
     row_status:set({ label = { string = "Loading…" } })
     fetch_battery_info(function(info, exit_code)
       if exit_code ~= 0 or type(info) ~= "table" then
@@ -484,7 +813,7 @@ battery:subscribe("mouse.clicked", function(env)
       end
       row_charger:set({ label = { string = ellipsize(charger_line, 72) } })
       row_system:set({ label = { string = format_system(info) } })
-      row_adapter:set({ label = { string = format_adapter(info) } })
+      row_adapter_info:set({ label = { string = format_adapter(info) } })
       row_device:set({ label = { string = format_device(info) } })
       row_flags:set({ label = { string = format_flags(info) } })
       row_serial:set({ label = { string = info.serial and tostring(info.serial) or "-" } })

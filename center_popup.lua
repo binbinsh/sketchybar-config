@@ -418,6 +418,53 @@ function M.create(name, opts)
     })
   end
 
+  local function add_section(key, section_title)
+    return sbar.add("item", name .. ".section." .. key, {
+      position = position,
+      width = width,
+      icon = {
+        align = "left",
+        string = "── " .. section_title .. " ──",
+        width = width,
+        font = { family = settings.font.text, style = settings.font.style_map["Bold"], size = 11.0 },
+        color = accent,
+      },
+      label = { drawing = false },
+      background = { drawing = false },
+    })
+  end
+
+  local function add_slider(key, slider_opts)
+    slider_opts = slider_opts or {}
+    local highlight_color = slider_opts.highlight_color or accent
+    local percentage = slider_opts.percentage or 0
+    local slider_height = slider_opts.height or 6
+    local slider_corner_radius = slider_opts.corner_radius or 3
+    local track_color = slider_opts.track_color or colors.bg2
+    local knob_string = slider_opts.knob or "􀀁"
+
+    return sbar.add("slider", width, {
+      position = position,
+      width = width,
+      slider = {
+        highlight_color = highlight_color,
+        percentage = percentage,
+        background = {
+          height = slider_height,
+          corner_radius = slider_corner_radius,
+          color = track_color,
+        },
+        knob = {
+          string = knob_string,
+          drawing = true,
+        },
+      },
+      background = { drawing = false },
+      padding_left = 0,
+      padding_right = 0,
+    })
+  end
+
   local meta_item = sbar.add("item", name .. ".meta", {
     position = position,
     width = width,
@@ -474,6 +521,8 @@ function M.create(name, opts)
     set_image = function(path) body_item:set({ background = { image = { string = path } } }) end,
     add_footer_buttons = add_footer_buttons,
     add_close_row = add_close_row,
+    add_section = add_section,
+    add_slider = add_slider,
   }
 end
 

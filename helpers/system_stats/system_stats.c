@@ -4,6 +4,7 @@
 #include <IOKit/hidsystem/IOHIDEventSystemClient.h>
 #include <IOKit/hidsystem/IOHIDServiceClient.h>
 #include <mach/mach.h>
+#include <mach/task_info.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -12,9 +13,110 @@
 #include <string.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
+#include <libproc.h>
 
 #include "cpu.h"
 #include "../sketchybar.h"
+
+#define MAX_TOP_PROCS 10
+
+typedef struct {
+  pid_t pid;
+  char name[256];
+  uint64_t gpu_time;
+} proc_gpu_info_t;
+
+// Comparison function for sorting by GPU time (descending)
+static int compare_gpu_time(const void *a, const void *b) {
+  const proc_gpu_info_t *pa = (const proc_gpu_info_t *)a;
+  const proc_gpu_info_t *pb = (const proc_gpu_info_t *)b;
+  if (pb->gpu_time > pa->gpu_time) return 1;
+  if (pb->gpu_time < pa->gpu_time) return -1;
+  return 0;
+}
+
+// Get GPU utilization for a single process using task_info
+static uint64_t get_process_gpu_time(pid_t pid) {
+  mach_port_t task;
+  kern_return_t kr = task_for_pid(mach_task_self(), pid, &task);
+  if (kr != KERN_SUCCESS) return 0;
+
+  struct task_power_info_v2 power_info;
+  mach_msg_type_number_t count = TASK_POWER_INFO_V2_COUNT;
+  kr = task_info(task, TASK_POWER_INFO_V2, (task_info_t)&power_info, &count);
+  mach_port_deallocate(mach_task_self(), task);
+
+  if (kr != KERN_SUCCESS) return 0;
+  return power_info.gpu_energy.task_gpu_utilisation;
+}
+
+// Get top GPU-using processes and format as string for sketchybar
+static void get_top_gpu_processes(char *buffer, size_t bufsize) {
+  // Get list of all PIDs
+  int num_pids = proc_listallpids(NULL, 0);
+  if (num_pids <= 0) {
+    snprintf(buffer, bufsize, "");
+    return;
+  }
+
+  pid_t *pids = (pid_t *)malloc(sizeof(pid_t) * num_pids);
+  if (!pids) {
+    snprintf(buffer, bufsize, "");
+    return;
+  }
+
+  num_pids = proc_listallpids(pids, sizeof(pid_t) * num_pids);
+  if (num_pids <= 0) {
+    free(pids);
+    snprintf(buffer, bufsize, "");
+    return;
+  }
+
+  // Collect GPU time for each process
+  proc_gpu_info_t *all_procs = (proc_gpu_info_t *)malloc(sizeof(proc_gpu_info_t) * num_pids);
+  if (!all_procs) {
+    free(pids);
+    snprintf(buffer, bufsize, "");
+    return;
+  }
+
+  int valid_count = 0;
+  for (int i = 0; i < num_pids; i++) {
+    pid_t pid = pids[i];
+    if (pid <= 0) continue;
+
+    uint64_t gpu_time = get_process_gpu_time(pid);
+    if (gpu_time == 0) continue;  // Skip processes with no GPU usage
+
+    // Get process name
+    char name[256] = {0};
+    proc_name(pid, name, sizeof(name));
+    if (name[0] == '\0') continue;
+
+    all_procs[valid_count].pid = pid;
+    strncpy(all_procs[valid_count].name, name, sizeof(all_procs[valid_count].name) - 1);
+    all_procs[valid_count].gpu_time = gpu_time;
+    valid_count++;
+  }
+
+  // Sort by GPU time descending
+  qsort(all_procs, valid_count, sizeof(proc_gpu_info_t), compare_gpu_time);
+
+  // Format top 10 as semicolon-separated string: "name1:time1;name2:time2;..."
+  buffer[0] = '\0';
+  int count = valid_count < MAX_TOP_PROCS ? valid_count : MAX_TOP_PROCS;
+  size_t offset = 0;
+  for (int i = 0; i < count && offset < bufsize - 1; i++) {
+    int written = snprintf(buffer + offset, bufsize - offset, "%s%s:%llu",
+                           i > 0 ? ";" : "",
+                           all_procs[i].name,
+                           (unsigned long long)all_procs[i].gpu_time);
+    if (written > 0) offset += written;
+  }
+
+  free(all_procs);
+  free(pids);
+}
 
 static int clamp_int(int value, int min, int max) {
   if (value < min) return min;
@@ -195,7 +297,8 @@ int main(int argc, char **argv) {
   snprintf(event_message, sizeof(event_message), "--add event '%s'", argv[1]);
   sketchybar(event_message);
 
-  char trigger_message[1024];
+  char trigger_message[4096];
+  char gpu_procs_buffer[2048];
   for (;;) {
     cpu_update(&cpu);
 
@@ -209,6 +312,9 @@ int main(int argc, char **argv) {
     int gpu_temp = -1;
     read_temperatures(&cpu_temp, &gpu_temp);
 
+    // Get top GPU processes
+    get_top_gpu_processes(gpu_procs_buffer, sizeof(gpu_procs_buffer));
+
     snprintf(trigger_message,
              sizeof(trigger_message),
              "--trigger '%s' "
@@ -220,7 +326,8 @@ int main(int argc, char **argv) {
              "mem_total_bytes='%llu' "
              "gpu_util='%d' "
              "cpu_temp='%d' "
-             "gpu_temp='%d'",
+             "gpu_temp='%d' "
+             "gpu_procs='%s'",
              argv[1],
              cpu.user_load,
              cpu.sys_load,
@@ -230,7 +337,8 @@ int main(int argc, char **argv) {
              (unsigned long long)(mem_ok ? mem_total : 0ULL),
              gpu_util,
              cpu_temp,
-             gpu_temp);
+             gpu_temp,
+             gpu_procs_buffer);
 
     sketchybar(trigger_message);
 

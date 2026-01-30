@@ -139,7 +139,7 @@ end
 
 local function build_weather_url(lat, lon, key)
   return string.format(
-    "https://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&units=metric&lang=en&appid=%s",
+    "https://api.openweathermap.org/data/3.0/onecall?lat=%s&lon=%s&units=metric&lang=en&appid=%s",
     lat, lon, key
   )
 end
@@ -187,38 +187,56 @@ local function reverse_geocode_label(lat, lon, callback)
   end)
 end
 
-local function jxa_fetch_current(url)
+local function jxa_fetch_onecall(url)
   local js_lines = {
     "function run(argv) {",
     "  var url = argv[0];",
     "  var app = Application.currentApplication();",
     "  app.includeStandardAdditions = true;",
     "  try {",
-    "    var s = app.doShellScript('/usr/bin/curl -m 6 -s ' + JSON.stringify(url));",
+    "    var s = app.doShellScript('/usr/bin/curl -m 10 -s ' + JSON.stringify(url));",
     "    var j = JSON.parse(s);",
-    "    var cod = j.cod;",
-    "    if (cod && cod != 200 && cod != '200') return '';",
-    "    var w = (j.weather && j.weather[0]) || {};",
-    "    var main = j.main || {};",
-    "    var sys = j.sys || {};",
-    "    var wind = j.wind || {};",
-    "    var name = (j.name || '');",
-    "    var country = (sys.country || '');",
-    "    var place = name;",
-    "    if (place && country) place = place + ', ' + country;",
-    "    if (!place) place = country || '';",
+    "    if (j.cod && j.cod != 200 && j.cod != '200') return '';",
+    "    var c = j.current || {};",
+    "    var w = (c.weather && c.weather[0]) || {};",
+    "    var hourly = j.hourly || [];",
+    "    var daily = j.daily || [];",
+    "    var alerts = j.alerts || [];",
+    "    var hourlyTemps = [];",
+    "    for (var i = 0; i < 24 && i < hourly.length; i++) {",
+    "      hourlyTemps.push(Math.round(hourly[i].temp || 0));",
+    "    }",
+    "    var dailyData = [];",
+    "    for (var i = 0; i < 5 && i < daily.length; i++) {",
+    "      var d = daily[i];",
+    "      var dw = (d.weather && d.weather[0]) || {};",
+    "      dailyData.push({",
+    "        dt: d.dt || 0,",
+    "        temp_min: Math.round((d.temp && d.temp.min) || 0),",
+    "        temp_max: Math.round((d.temp && d.temp.max) || 0),",
+    "        weather_id: dw.id || 800,",
+    "        pop: d.pop || 0",
+    "      });",
+    "    }",
+    "    var alertData = [];",
+    "    for (var i = 0; i < alerts.length; i++) {",
+    "      alertData.push({ event: alerts[i].event || 'Weather Alert' });",
+    "    }",
     "    return [",
-    "      Math.round((main.temp||0)),",
+    "      Math.round((c.temp||0)),",
     "      (w.id||800),",
     "      (w.description||''),",
-    "      (sys.sunrise||0),",
-    "      (sys.sunset||0),",
-    "      (j.timezone||0),",
-    "      (+(Math.round(((wind.speed||0)*10))/10)).toFixed(1),",
-    "      (main.humidity||0),",
-    "      (main.pressure||0),",
-    "      Math.round((main.feels_like||0)),",
-    "      (place||'')",
+    "      (c.sunrise||0),",
+    "      (c.sunset||0),",
+    "      (j.timezone_offset||0),",
+    "      (+(Math.round(((c.wind_speed||0)*10))/10)).toFixed(1),",
+    "      (c.humidity||0),",
+    "      (c.pressure||0),",
+    "      Math.round((c.feels_like||0)),",
+    "      '',",
+    "      JSON.stringify(hourlyTemps),",
+    "      JSON.stringify(dailyData),",
+    "      JSON.stringify(alertData)",
     "    ].join('|');",
     "  } catch (e) { return ''; }",
     "}",
@@ -226,9 +244,66 @@ local function jxa_fetch_current(url)
   return build_jxa_cmd(js_lines, url)
 end
 
+local function safe_json_decode(str)
+  if not str or str == "" then return nil end
+  local ok, result = pcall(function()
+    -- Simple JSON array/object parser for our limited use case
+    local fn = load("return " .. str:gsub("%[", "{"):gsub("%]", "}"):gsub(":", "="):gsub('"(%w+)"=', "%1="))
+    if fn then return fn() end
+    return nil
+  end)
+  return ok and result or nil
+end
+
 local function parse_weather_psv(psv)
   local parts = split(psv or "", "|")
   if #parts < 11 then return nil end
+
+  -- Parse hourly temps (JSON array of numbers)
+  local hourly_temps = nil
+  if parts[12] and parts[12] ~= "" then
+    local temps_str = parts[12]
+    hourly_temps = {}
+    for num in temps_str:gmatch("%-?%d+") do
+      hourly_temps[#hourly_temps + 1] = tonumber(num)
+    end
+    if #hourly_temps == 0 then hourly_temps = nil end
+  end
+
+  -- Parse daily forecast (JSON array of objects)
+  local daily = nil
+  if parts[13] and parts[13] ~= "" then
+    daily = {}
+    -- Parse JSON manually: {"dt":123,"temp_min":10,"temp_max":20,"weather_id":800,"pop":0.1}
+    for obj in parts[13]:gmatch("{[^}]+}") do
+      local dt = tonumber(obj:match('"dt":(%d+)'))
+      local temp_min = tonumber(obj:match('"temp_min":(%-?%d+)'))
+      local temp_max = tonumber(obj:match('"temp_max":(%-?%d+)'))
+      local weather_id = tonumber(obj:match('"weather_id":(%d+)'))
+      local pop = tonumber(obj:match('"pop":([%d%.]+)'))
+      if dt then
+        daily[#daily + 1] = {
+          dt = dt,
+          temp_min = temp_min or 0,
+          temp_max = temp_max or 0,
+          weather_id = weather_id or 800,
+          pop = pop or 0,
+        }
+      end
+    end
+    if #daily == 0 then daily = nil end
+  end
+
+  -- Parse alerts (JSON array of objects with event field)
+  local alerts = nil
+  if parts[14] and parts[14] ~= "" and parts[14] ~= "[]" then
+    alerts = {}
+    for event in parts[14]:gmatch('"event":"([^"]*)"') do
+      alerts[#alerts + 1] = { event = event }
+    end
+    if #alerts == 0 then alerts = nil end
+  end
+
   return {
     temp = tonumber(parts[1] or 0),
     id = tonumber(parts[2] or 800),
@@ -241,12 +316,45 @@ local function parse_weather_psv(psv)
     pressure = tonumber(parts[9] or 0),
     feels = tonumber(parts[10] or 0),
     place = parts[11] or "",
+    hourly_temps = hourly_temps,
+    daily = daily,
+    alerts = alerts,
   }
 end
 
 local function write_weather_cache(data)
   if type(data) ~= "table" then return end
   local ts = os.time()
+
+  -- Serialize hourly_temps as JSON array
+  local hourly_json = "[]"
+  if data.hourly_temps and #data.hourly_temps > 0 then
+    hourly_json = "[" .. table.concat(data.hourly_temps, ",") .. "]"
+  end
+
+  -- Serialize daily as JSON array
+  local daily_json = "[]"
+  if data.daily and #data.daily > 0 then
+    local daily_parts = {}
+    for _, d in ipairs(data.daily) do
+      daily_parts[#daily_parts + 1] = string.format(
+        '{"dt":%d,"temp_min":%d,"temp_max":%d,"weather_id":%d,"pop":%.2f}',
+        d.dt or 0, d.temp_min or 0, d.temp_max or 0, d.weather_id or 800, d.pop or 0
+      )
+    end
+    daily_json = "[" .. table.concat(daily_parts, ",") .. "]"
+  end
+
+  -- Serialize alerts as JSON array
+  local alerts_json = "[]"
+  if data.alerts and #data.alerts > 0 then
+    local alert_parts = {}
+    for _, a in ipairs(data.alerts) do
+      alert_parts[#alert_parts + 1] = string.format('{"event":"%s"}', sanitize_field(a.event or ""))
+    end
+    alerts_json = "[" .. table.concat(alert_parts, ",") .. "]"
+  end
+
   local line = table.concat({
     tostring(ts),
     tostring(round_int(data.temp)),
@@ -262,6 +370,9 @@ local function write_weather_cache(data)
     sanitize_field(data.place),
     tostring(data.lat or 0),
     tostring(data.lon or 0),
+    hourly_json,
+    daily_json,
+    alerts_json,
   }, "|")
   write_file(weather_cache, line)
 end
@@ -275,6 +386,49 @@ local function try_read_weather_cache()
   local ts = tonumber(parts[1] or 0) or 0
   if ts <= 0 then return nil end
   if os.time() - ts >= WEATHER_TTL then return nil end
+
+  -- Parse hourly temps
+  local hourly_temps = nil
+  if parts[15] and parts[15] ~= "" and parts[15] ~= "[]" then
+    hourly_temps = {}
+    for num in parts[15]:gmatch("%-?%d+") do
+      hourly_temps[#hourly_temps + 1] = tonumber(num)
+    end
+    if #hourly_temps == 0 then hourly_temps = nil end
+  end
+
+  -- Parse daily forecast
+  local daily = nil
+  if parts[16] and parts[16] ~= "" and parts[16] ~= "[]" then
+    daily = {}
+    for obj in parts[16]:gmatch("{[^}]+}") do
+      local dt = tonumber(obj:match('"dt":(%d+)'))
+      local temp_min = tonumber(obj:match('"temp_min":(%-?%d+)'))
+      local temp_max = tonumber(obj:match('"temp_max":(%-?%d+)'))
+      local weather_id = tonumber(obj:match('"weather_id":(%d+)'))
+      local pop = tonumber(obj:match('"pop":([%d%.]+)'))
+      if dt then
+        daily[#daily + 1] = {
+          dt = dt,
+          temp_min = temp_min or 0,
+          temp_max = temp_max or 0,
+          weather_id = weather_id or 800,
+          pop = pop or 0,
+        }
+      end
+    end
+    if #daily == 0 then daily = nil end
+  end
+
+  -- Parse alerts
+  local alerts = nil
+  if parts[17] and parts[17] ~= "" and parts[17] ~= "[]" then
+    alerts = {}
+    for event in parts[17]:gmatch('"event":"([^"]*)"') do
+      alerts[#alerts + 1] = { event = event }
+    end
+    if #alerts == 0 then alerts = nil end
+  end
 
   return {
     ts = ts,
@@ -291,6 +445,9 @@ local function try_read_weather_cache()
     place = parts[12] or "",
     lat = parts[13],
     lon = parts[14],
+    hourly_temps = hourly_temps,
+    daily = daily,
+    alerts = alerts,
   }
 end
 
@@ -389,7 +546,7 @@ local weather = sbar.add("item", "widgets.weather", {
 local popup_width = 420
 local weather_popup = center_popup.create("weather.popup", {
   width = popup_width,
-  height = 360,
+  height = 520,
   popup_height = 26,
   title = "Weather " .. icons.refresh,
   meta = "",
@@ -428,12 +585,119 @@ local row_location = add_row("location", "Location")
 local row_condition = add_row("condition", "Condition")
 local row_temp = add_row("temp", "Temperature")
 local row_feels = add_row("feels", "Feels like")
-local row_humidity = add_row("humidity", "Humidity")
+
+-- Humidity row (after Feels like)
+local humidity_bar = sbar.add("item", "weather.popup.humidity_bar", {
+  position = popup_pos,
+  width = popup_width,
+  icon = {
+    align = "left",
+    string = "Humidity",
+    width = name_width,
+    font = { family = settings.font.text, style = settings.font.style_map["Semibold"], size = 12.0 },
+  },
+  label = {
+    align = "right",
+    string = "░░░░░░░░░░ 0%",
+    width = value_width,
+    font = { family = settings.font.numbers, style = settings.font.style_map["Regular"], size = 12.0 },
+  },
+  background = { drawing = false },
+})
+
 local row_wind = add_row("wind", "Wind")
 local row_pressure = add_row("pressure", "Pressure")
 local row_sunrise = add_row("sunrise", "Sunrise")
 local row_sunset = add_row("sunset", "Sunset")
 local row_tz = add_row("tz", "Time zone")
+
+local function make_humidity_bar(percent)
+  local p = tonumber(percent) or 0
+  local filled = math.floor(p / 10 + 0.5)
+  local empty = 10 - filled
+  return string.rep("█", filled) .. string.rep("░", empty) .. string.format(" %d%%", p)
+end
+
+-- 5-day forecast section
+weather_popup.add_section("daily", "5-DAY OUTLOOK")
+
+local forecast_rows = {}
+for i = 1, 5 do
+  forecast_rows[i] = add_row("day" .. i, "Day " .. i)
+end
+
+local day_names_zh = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"}
+
+local function make_rain_indicator(pop)
+  local p = tonumber(pop) or 0
+  if p < 0.1 then return "" end
+  local pct = round_int(p * 100)
+  -- Use rain drop density to show probability
+  if pct >= 80 then return "🌧️" .. pct .. "%" end
+  if pct >= 50 then return "🌦️" .. pct .. "%" end
+  if pct >= 20 then return "💧" .. pct .. "%" end
+  return "💧" .. pct .. "%"
+end
+
+local function update_daily_forecast(daily_data)
+  if not daily_data then
+    for i = 1, 5 do
+      if forecast_rows[i] then
+        forecast_rows[i]:set({ icon = { string = "-" }, label = { string = "-" } })
+      end
+    end
+    return
+  end
+  for i, day in ipairs(daily_data) do
+    if i > 5 or not forecast_rows[i] then break end
+    local date = os.date("*t", day.dt)
+    local day_name = day_names_zh[date.wday]
+    local weather_icon = owm_icon_for(day.weather_id, true)
+    -- Fixed width format: icon + temps, right aligned
+    local temp_str = string.format("%3d°/%d°", round_int(day.temp_max), round_int(day.temp_min))
+    forecast_rows[i]:set({
+      icon = { string = day_name },
+      label = { string = weather_icon .. "  " .. temp_str },
+    })
+  end
+end
+
+-- Weather alert row
+local row_alert = sbar.add("item", "weather.popup.alert", {
+  position = popup_pos,
+  width = popup_width,
+  drawing = false,
+  icon = {
+    align = "left",
+    string = "⚠️",
+    width = 30,
+    color = colors.red,
+  },
+  label = {
+    align = "left",
+    string = "",
+    width = popup_width - 30,
+    font = { family = settings.font.text, style = settings.font.style_map["Semibold"], size = 11.0 },
+    color = colors.red,
+    max_chars = 50,
+  },
+  background = {
+    drawing = true,
+    color = colors.with_alpha(colors.red, 0.15),
+    corner_radius = 4,
+  },
+})
+
+local function update_alerts(alerts)
+  if not alerts or #alerts == 0 then
+    row_alert:set({ drawing = false })
+    return
+  end
+  row_alert:set({
+    drawing = true,
+    label = { string = alerts[1].event or "Weather Alert" },
+  })
+end
 
 weather_popup.add_close_row({ label = "close x" })
 
@@ -532,12 +796,14 @@ local function update_popup(force)
     row_condition:set({ label = { string = "-" } })
     row_temp:set({ label = { string = "-" } })
     row_feels:set({ label = { string = "-" } })
-    row_humidity:set({ label = { string = "-" } })
+    humidity_bar:set({ label = { string = "░░░░░░░░░░ 0%" } })
     row_wind:set({ label = { string = "-" } })
     row_pressure:set({ label = { string = "-" } })
     row_sunrise:set({ label = { string = "-" } })
     row_sunset:set({ label = { string = "-" } })
     row_tz:set({ label = { string = "-" } })
+    update_daily_forecast(nil)
+    update_alerts(nil)
     return
   end
 
@@ -551,10 +817,16 @@ local function update_popup(force)
     end
   end
 
-  row_condition:set({ label = { string = condition_label ~= "" and condition_label or "-" } })
+  -- Add weather icon to condition
+  local now = os.time()
+  local is_day = (now >= (current_data.sunrise or 0)) and (now < (current_data.sunset or 0))
+  local condition_icon = owm_icon_for(current_data.id, is_day)
+  local condition_display = condition_icon .. " " .. (condition_label ~= "" and condition_label or "-")
+
+  row_condition:set({ label = { string = condition_display } })
   row_temp:set({ label = { string = format_temp_c(current_data.temp) } })
   row_feels:set({ label = { string = format_temp_c(current_data.feels) } })
-  row_humidity:set({ label = { string = format_humidity(current_data.humidity) } })
+  humidity_bar:set({ label = { string = make_humidity_bar(current_data.humidity) } })
   row_wind:set({ label = { string = format_wind(current_data.wind) } })
   row_pressure:set({ label = { string = format_pressure(current_data.pressure) } })
 
@@ -567,6 +839,10 @@ local function update_popup(force)
   local hh = math.floor(abs / 3600)
   local mm = math.floor((abs % 3600) / 60)
   row_tz:set({ label = { string = string.format("UTC%s%02d:%02d", sign, hh, mm) } })
+
+  -- Update new components
+  update_daily_forecast(current_data.daily)
+  update_alerts(current_data.alerts)
 end
 
 local function maybe_reverse_geocode(lat, lon, opts)
@@ -659,7 +935,7 @@ local function refresh(force)
       maybe_reverse_geocode(loc.lat, loc.lon, { force = force })
 
       local url = build_weather_url(loc.lat, loc.lon, key)
-      sbar.exec(jxa_fetch_current(url), function(out)
+      sbar.exec(jxa_fetch_onecall(url), function(out)
         if token ~= refresh_token then return end
         out = trim_newline(out or "")
         local data = parse_weather_psv(out)

@@ -91,22 +91,9 @@ local name_width = 140
 local value_width = popup_width - name_width
 
 -- Slider at the top
-local volume_slider = sbar.add("slider", popup_width, {
-  position = popup_pos,
-  slider = {
-    highlight_color = colors.green,
-    percentage = 0,
-    background = {
-      height = 6,
-      corner_radius = 3,
-      color = colors.bg2,
-    },
-    knob = {
-      string = "􀀁",
-      drawing = true,
-    },
-  },
-  background = { color = colors.bg1, height = 2, y_offset = -20 },
+local volume_slider = volume_popup.add_slider("volume", {
+  highlight_color = colors.green,
+  percentage = 0,
 })
 
 local function add_row(key, title, opts)
@@ -132,33 +119,17 @@ local function add_row(key, title, opts)
   })
 end
 
-local function add_section(key, title)
-  return sbar.add("item", "volume.popup.section." .. key, {
-    position = popup_pos,
-    width = popup_width,
-    icon = {
-      align = "left",
-      string = "── " .. title .. " ──",
-      width = popup_width,
-      font = { family = settings.font.text, style = settings.font.style_map["Bold"], size = 11.0 },
-      color = colors.green,
-    },
-    label = { drawing = false },
-    background = { drawing = false },
-  })
-end
-
 local row_level = add_row("level", "Level")
 local row_mute = add_row("mute", "Mute")
 
-add_section("output", "OUTPUT")
+volume_popup.add_section("output", "OUTPUT")
 local row_out_device = add_row("out_device", "Device")
 local row_out_transport = add_row("out_transport", "Transport")
 local row_out_sample = add_row("out_sample", "Sample Rate")
 local row_out_channels = add_row("out_channels", "Channels")
 local row_out_format = add_row("out_format", "Format")
 
-add_section("input", "INPUT")
+volume_popup.add_section("input", "INPUT")
 local row_in_device = add_row("in_device", "Device")
 local row_in_transport = add_row("in_transport", "Transport")
 local row_in_sample = add_row("in_sample", "Sample Rate")

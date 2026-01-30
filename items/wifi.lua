@@ -26,50 +26,30 @@ local last_rate_color = nil
 -- If you are not using en0 for Wi‑Fi, export WIFI_INTERFACE accordingly.
 local wifi_interface = os.getenv("WIFI_INTERFACE") or "en0"
 
-local rate_label_width = 36
-local rate_font = {
-  family = settings.font.numbers,
-  style = settings.font.style_map["Bold"],
-  size = 9.0,
-}
+-- Graph style matching system_stats (CPU/GPU/MEM) - single combined graph
+local graph_width = 44
+local trailing_gap = 16
 
--- Add the rate labels FIRST so the Wi‑Fi icon item lands on the left on the right side.
--- Stack the labels by making the "up" item width=0 so it overlays the "down" item.
-local wifi_up = sbar.add("item", "widgets.wifi.up", {
+local wifi_net = sbar.add("graph", "widgets.wifi.net", graph_width, {
   position = "right",
-  width = 0,
-  padding_left = 0,
-    padding_right = 0,
+  graph = { color = colors.red },
   icon = { drawing = false },
   label = {
-    font = rate_font,
-    width = rate_label_width,
+    string = "--",
+    color = colors.white,
+    font = {
+      family = settings.font.numbers,
+      style = settings.font.style_map["Bold"],
+      size = 9.0,
+    },
+    align = "right",
     padding_left = 2,
     padding_right = 6,
-    align = "left",
-    string = "000",
-    color = colors.white,
+    width = 0,
+    y_offset = 4,
   },
-  y_offset = 5,
-  background = { drawing = false },
-})
-
-local wifi_down = sbar.add("item", "widgets.wifi.down", {
-  position = "right",
   padding_left = 0,
-    padding_right = 0,
-  icon = { drawing = false },
-  label = {
-    font = rate_font,
-    width = rate_label_width,
-    padding_left = 2,
-    padding_right = 6,
-    align = "left",
-    string = "000",
-    color = colors.white,
-  },
-  y_offset = -5,
-  background = { drawing = false },
+  padding_right = trailing_gap,
 })
 
 local wifi = sbar.add("item", "widgets.wifi", {
@@ -97,48 +77,27 @@ end
 local function format_widget_rate(mbps)
   local n = tonumber(mbps) or 0
   if n < 0 then n = 0 end
-  local i = round_int(n)
-  if i < 1000 then
-    return string.format("%03d", i)
+  if n >= 1000 then
+    return string.format("%.1fGbps", n / 1000)
+  elseif n >= 1 then
+    return string.format("%dMbps", round_int(n))
+  else
+    return string.format("%dKbps", round_int(n * 1000))
   end
-  return tostring(i)
 end
+
+-- Dynamic scale for graph (tracks peak for better visualization)
+local graph_peak = 10  -- Start with 10 Mbps as baseline
 
 local function render_widget(connected, down_mbps, up_mbps)
   local icon = connected and icons.wifi.connected or icons.wifi.disconnected
-  local down_i = round_int(down_mbps)
-  local up_i = round_int(up_mbps)
-
   local icon_color = connected and colors.green or colors.red
 
-  local up_str = connected and format_widget_rate(up_mbps) or "000"
-  local down_str = connected and format_widget_rate(down_mbps) or "000"
-  local rate_color = colors.white
-
-  if last_connected == connected
-    and last_down_int == down_i
-    and last_up_int == up_i
-    and last_icon == icon
-    and last_icon_color == icon_color
-    and last_up_str == up_str
-    and last_down_str == down_str
-    and last_rate_color == rate_color
-  then
-    return
+  if last_icon ~= icon or last_icon_color ~= icon_color then
+    last_icon = icon
+    last_icon_color = icon_color
+    wifi:set({ icon = { string = icon, color = icon_color } })
   end
-
-  last_connected = connected
-  last_down_int = down_i
-  last_up_int = up_i
-  last_icon = icon
-  last_icon_color = icon_color
-  last_up_str = up_str
-  last_down_str = down_str
-  last_rate_color = rate_color
-
-  wifi:set({ icon = { string = icon, color = icon_color } })
-  wifi_up:set({ label = { string = up_str, color = rate_color } })
-  wifi_down:set({ label = { string = down_str, color = rate_color } })
 end
 
 -- Popup (battery-style rows).
@@ -181,22 +140,6 @@ local function add_row(key, title, opts)
   })
 end
 
-local function add_section(key, title)
-  return sbar.add("item", "wifi.popup.section." .. key, {
-    position = popup_pos,
-    width = popup_width,
-    drawing = false,
-    icon = {
-      align = "left",
-      string = title,
-      width = popup_width,
-      font = { family = settings.font.text, style = settings.font.style_map["Semibold"], size = 12.0 },
-    },
-    label = { drawing = false },
-    background = { drawing = false },
-  })
-end
-
 local row_status = add_row("status", "Status")
 local row_ssid = add_row("ssid", "SSID")
 local row_hostname = add_row("hostname", "Hostname")
@@ -222,7 +165,7 @@ local row_cc = add_row("cc", "Country Code", { drawing = false })
 
 local scamalytics_popup = scamalytics.attach_popup({
   add_row = add_row,
-  add_section = add_section,
+  add_section = wifi_popup.add_section,
   is_showing = wifi_popup.is_showing,
   host = os.getenv("SCAMALYTICS_API_HOST"),
   cache_ttl = 900,
@@ -285,6 +228,15 @@ wifi:subscribe("network_update", function(env)
   current_up_mbps = tonumber(env.upload) or 0
   render_widget(current_connected, current_down_mbps, current_up_mbps)
   update_popup_rates(false)
+
+  -- Push to graph with dynamic scaling
+  local total_mbps = current_down_mbps + current_up_mbps
+  if total_mbps > graph_peak then
+    graph_peak = total_mbps
+  end
+  local normalized = math.min(total_mbps / graph_peak, 1.0)
+  wifi_net:push({ normalized })
+  wifi_net:set({ label = format_widget_rate(total_mbps) })
 end)
 
 -- Location permission gating (SSID may require it).
@@ -379,8 +331,7 @@ local function wifi_on_click(env)
 end
 
 wifi:subscribe("mouse.clicked", wifi_on_click)
-wifi_up:subscribe("mouse.clicked", wifi_on_click)
-wifi_down:subscribe("mouse.clicked", wifi_on_click)
+wifi_net:subscribe("mouse.clicked", wifi_on_click)
 
 -- Initial sync (best effort).
 render_widget(false, 0, 0)

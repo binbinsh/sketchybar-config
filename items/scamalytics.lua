@@ -312,7 +312,6 @@ function M.attach_popup(opts)
     blacklist = add_row("scamalytics_blacklist", "Blacklisted", { drawing = false }),
     url = add_row("scamalytics_url", "Report URL", { drawing = false }),
   }
-  rows.title:set({ icon = { align = "center", string = "SCAMALYTICS" } })
 
   local client = new_client({
     host = opts.host,
