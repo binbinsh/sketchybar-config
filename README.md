@@ -23,6 +23,7 @@ curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/instal
 - Volume: Compact volume + scroll to adjust.
 - Menus: Apple menu + current app menu rendering driven by the native menus helper.
 - 1Password: Quick Access launcher.
+- Cloudflare WARP: Menubar menu shortcut with app-launch fallback.
 
 ## Docs
 

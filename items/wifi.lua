@@ -4,8 +4,9 @@ local settings = require("settings")
 local center_popup = require("center_popup")
 local scamalytics = require("items.scamalytics")
 
--- Native event provider for network throughput ("network_update") on the primary
--- interface. This keeps the widget event-driven and avoids frequent shell polling.
+-- Native event provider for network throughput ("network_update") on the
+-- effective uplink interface. This keeps the widget event-driven and avoids
+-- frequent shell polling.
 sbar.exec("killall network_load >/dev/null 2>&1; $CONFIG_DIR/helpers/network_load/bin/network_load auto network_update 2.0")
 
 -- Battery-style compact Wi‑Fi widget:
@@ -22,8 +23,8 @@ local last_up_str = nil
 local last_down_str = nil
 local last_rate_color = nil
 
--- Allow overriding the interface used for the quick connectivity check.
--- If you are not using en0 for Wi‑Fi, export WIFI_INTERFACE accordingly.
+-- Allow overriding the interface used for the connectivity check.
+-- If auto-detection is not suitable, export WIFI_INTERFACE accordingly.
 local wifi_interface = os.getenv("WIFI_INTERFACE") or "en0"
 
 -- Graph style matching system_stats (CPU/GPU/MEM) - single combined graph
@@ -198,30 +199,6 @@ local function update_popup_rates(force)
   row_upload:set({ label = { string = format_rate_row(current_up_mbps) } })
 end
 
-local function update_connection_state(force_popup)
-  if _G.SKETCHYBAR_SUSPENDED then return end
-  sbar.exec("/usr/sbin/ipconfig getifaddr " .. wifi_interface .. " 2>/dev/null", function(ip)
-    ip = tostring(ip or ""):gsub("%s+$", "")
-    current_connected = (ip ~= "")
-    render_widget(current_connected, current_down_mbps, current_up_mbps)
-
-    if force_popup or wifi_popup.is_showing() then
-      row_status:set({ label = { string = current_connected and "Connected" or "Disconnected" } })
-      row_ip:set({ label = { string = (ip ~= "") and ip or "-" } })
-      update_popup_rates(true)
-      sbar.delay(0.05, function()
-        if scamalytics_popup and scamalytics_popup.update then
-          scamalytics_popup.update(force_popup)
-        end
-      end)
-    end
-  end)
-end
-
-wifi:subscribe({ "forced", "routine", "wifi_change", "system_woke" }, function(_)
-  update_connection_state(false)
-end)
-
 wifi:subscribe("network_update", function(env)
   if _G.SKETCHYBAR_SUSPENDED then return end
   current_down_mbps = tonumber(env.download) or 0
@@ -262,11 +239,7 @@ local function apply_wifi_info(info)
     set_opt_row(row_interface, nil)
   end
 
-  if info.ip and info.ip ~= "" then
-    current_connected = true
-  elseif info.ip == "" then
-    current_connected = false
-  end
+  current_connected = info.ip ~= nil and info.ip ~= ""
 
   render_widget(current_connected, current_down_mbps, current_up_mbps)
 
@@ -299,6 +272,22 @@ local function fetch_wifi_info(after)
   end)
 end
 
+local function refresh_connection_state(force_popup)
+  if _G.SKETCHYBAR_SUSPENDED then return end
+  fetch_wifi_info(function()
+    if not (force_popup or wifi_popup.is_showing()) then return end
+    sbar.delay(0.05, function()
+      if scamalytics_popup and scamalytics_popup.update then
+        scamalytics_popup.update(force_popup)
+      end
+    end)
+  end)
+end
+
+wifi:subscribe({ "forced", "routine", "wifi_change", "system_woke" }, function(_)
+  refresh_connection_state(false)
+end)
+
 local function populate_wifi_details()
   fetch_wifi_info(function(info)
     if info and info.ssid and info.ssid ~= "" then return end
@@ -325,7 +314,7 @@ local function wifi_on_click(env)
     -- We still populate rows here so values are ready on first render.
     row_status:set({ label = { string = current_connected and "Connected" or "Disconnected" } })
     update_popup_rates(true)
-    update_connection_state(true)
+    refresh_connection_state(true)
     populate_wifi_details()
   end)
 end
@@ -335,4 +324,4 @@ wifi_net:subscribe("mouse.clicked", wifi_on_click)
 
 -- Initial sync (best effort).
 render_widget(false, 0, 0)
-update_connection_state(false)
+refresh_connection_state(false)

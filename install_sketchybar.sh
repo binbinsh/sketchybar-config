@@ -2,6 +2,7 @@ echo "Installing Dependencies"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Packages
 brew install lua
+brew install libimobiledevice
 
 brew tap FelixKratz/formulae
 brew install sketchybar

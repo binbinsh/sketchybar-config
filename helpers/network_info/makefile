@@ -20,9 +20,9 @@ MINVER=-mmacosx-version-min=11.0
 
 app: $(APP_BUNDLE)
 
-$(APP_BUNDLE): network_info.m App-Info.plist
+$(APP_BUNDLE): network_info.m ../network_interface_resolver.c ../network_interface_resolver.h App-Info.plist
 	@mkdir -p $(APP_MACOS)
-	clang $(ARCHES) network_info.m -fobjc-arc $(MINVER) -framework Foundation -framework SystemConfiguration -framework CoreWLAN \
+	clang $(ARCHES) network_info.m ../network_interface_resolver.c -fobjc-arc $(MINVER) -framework Foundation -framework SystemConfiguration -framework CoreWLAN \
 	  -o $(APP_MACOS)/$(APP_NAME) \
 	  -Wl,-sectcreate,__TEXT,__info_plist,App-Info.plist
 	@cp App-Info.plist $(APP_INFO)

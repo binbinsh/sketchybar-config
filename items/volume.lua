@@ -25,7 +25,7 @@ end
 local function vol_to_db(vol)
   if vol <= 0 then return "-∞" end
   if vol >= 100 then return "0" end
-  local db = 20 * math.log10(vol / 100)
+  local db = 20 * math.log(vol / 100, 10)
   return string.format("%.0f", db)
 end
 

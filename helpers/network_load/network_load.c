@@ -5,29 +5,8 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #include "network.h"
+#include "../network_interface_resolver.h"
 #include "../sketchybar.h"
-
-static bool resolve_primary_interface(SCDynamicStoreRef store,
-                                      char* buffer,
-                                      size_t buffer_size) {
-  if (!store || !buffer || buffer_size == 0) return false;
-  CFStringRef keys[] = {
-    CFSTR("State:/Network/Global/IPv4"),
-    CFSTR("State:/Network/Global/IPv6"),
-  };
-  for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
-    CFDictionaryRef dict = SCDynamicStoreCopyValue(store, keys[i]);
-    if (!dict) continue;
-    CFStringRef iface = CFDictionaryGetValue(dict, CFSTR("PrimaryInterface"));
-    bool ok = false;
-    if (iface && CFGetTypeID(iface) == CFStringGetTypeID()) {
-      ok = CFStringGetCString(iface, buffer, buffer_size, kCFStringEncodingUTF8);
-    }
-    CFRelease(dict);
-    if (ok && buffer[0] != '\0') return true;
-  }
-  return false;
-}
 
 int main (int argc, char** argv) {
   float update_freq;
@@ -42,8 +21,8 @@ int main (int argc, char** argv) {
   const char* interface_name = argv[1];
   if (auto_mode) {
     store = SCDynamicStoreCreate(NULL, CFSTR("network_load"), NULL, NULL);
-    if (!store || !resolve_primary_interface(store, ifname, sizeof(ifname))) {
-      fprintf(stderr, "Failed to resolve primary interface\n");
+    if (!store || !sb_resolve_effective_interface(store, ifname, sizeof(ifname))) {
+      fprintf(stderr, "Failed to resolve effective interface\n");
       if (store) CFRelease(store);
       return 1;
     }
@@ -66,7 +45,7 @@ int main (int argc, char** argv) {
   for (;;) {
     if (auto_mode) {
       char current[IF_NAMESIZE] = { 0 };
-      if (resolve_primary_interface(store, current, sizeof(current))
+      if (sb_resolve_effective_interface(store, current, sizeof(current))
           && strcmp(current, ifname) != 0) {
         strlcpy(ifname, current, sizeof(ifname));
         if (!network_init(&network, ifname)) {

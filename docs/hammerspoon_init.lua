@@ -3,6 +3,9 @@ hs.window.animationDuration = 0
 -- SketchyBar bar height from sketchybarrc
 local TOP_PADDING = 32
 local TITLEBAR_ZONE = 36 -- pixels from the top edge we treat as titlebar for double-click
+-- Stricter custom double-click detection (ignores macOS clickState to avoid slow double-clicks)
+local DOUBLE_CLICK_MAX_DELAY = 0.18 -- seconds
+local DOUBLE_CLICK_MAX_DISTANCE = 4 -- pixels
 local wf = hs.window.filter.new():setCurrentSpace(true)
 local ax = hs.axuielement
 
@@ -93,50 +96,29 @@ local function createDoubleclickTap()
   
   doubleclickTap = hs.eventtap.new({
     hs.eventtap.event.types.leftMouseDown,
-  }, function(ev)
-    local clickState = ev:getProperty(hs.eventtap.event.properties.mouseEventClickState)
+  }, function(_)
     local pos = hs.mouse.absolutePosition()
     local currentTime = hs.timer.secondsSinceEpoch()
-    
-    -- First, handle manual double-click detection
-    if clickState == 1 then
-      -- Single click
-      local timeDiff = currentTime - lastClickTime
-      local posDiff = math.sqrt((pos.x - lastClickPos.x)^2 + (pos.y - lastClickPos.y)^2)
-      
-      if timeDiff < 0.5 and posDiff < 5 then
-        -- This is a double-click
-        local win = hs.window.frontmostWindow()
-        if win then
-          if isTitlebarClick(win, pos) then
-            print("Manual double-click detected in titlebar")
-            -- Use a timer to ensure the key event is processed after the click
-            hs.timer.doAfter(0.05, function()
-              hs.eventtap.keyStroke({"alt", "shift"}, "M", 0)
-            end)
-            lastClickTime = 0 -- Reset to prevent triple-click
-            return true -- Block the event
-          end
-        end
-      end
-      
-      lastClickTime = currentTime
-      lastClickPos = pos
-    elseif clickState == 2 then
-      -- System detected double-click
+
+    -- Custom double-click detection (independent of system clickState)
+    local timeDiff = currentTime - lastClickTime
+    local posDiff = math.sqrt((pos.x - lastClickPos.x)^2 + (pos.y - lastClickPos.y)^2)
+
+    if timeDiff < DOUBLE_CLICK_MAX_DELAY and posDiff < DOUBLE_CLICK_MAX_DISTANCE then
       local win = hs.window.frontmostWindow()
-      if win then
-        if isTitlebarClick(win, pos) then
-          print("System double-click detected in titlebar")
-          -- Use a timer to ensure the key event is processed
-          hs.timer.doAfter(0.05, function()
-            hs.eventtap.keyStroke({"alt", "shift"}, "M", 0)
-          end)
-          return true -- Block the event
-        end
+      if win and isTitlebarClick(win, pos) then
+        print("Manual double-click detected in titlebar")
+        -- Use a timer to ensure the key event is processed after the click
+        hs.timer.doAfter(0.05, function()
+          hs.eventtap.keyStroke({"alt", "shift"}, "M", 0)
+        end)
+        lastClickTime = 0 -- Reset to prevent triple-click
+        return true -- Block the event
       end
     end
-    
+
+    lastClickTime = currentTime
+    lastClickPos = pos
     return false
   end)
   

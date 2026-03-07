@@ -55,13 +55,13 @@ There is also a global performance guard (`mission_control.lua`) that sets `_G.S
     - **Connection**: Status, SSID, Hostname, IP, Subnet mask, Router, Download/Upload speeds
     - **Wi-Fi details** (when available): BSSID, PHY Mode, Channel, Security, Interface Mode, Signal/Noise, Transmit Rate/Power, MCS Index, Country Code
     - **Scamalytics**: IP risk score for public IP (when configured)
-  - Throughput is event-driven via `helpers/network_load/bin/network_load` (event: `network_update`).
-  - Popup details are fetched via `helpers/network_info/.../SketchyBarNetworkInfoHelper`.
+  - Throughput is event-driven via `helpers/network_load/bin/network_load` (event: `network_update`) and follows the effective uplink interface instead of VPN tunnel adapters.
+  - Popup details are fetched via `helpers/network_info/.../SketchyBarNetworkInfoHelper`, which also resolves the active physical interface when the default route is a VPN tunnel.
   - If SSID is missing, it may request Location permission (through the location helper).
   - Scamalytics IP risk is shown when `SCAMALYTICS_API_HOST` env is set, or when both `SCAMALYTICS_API_KEY` and `SCAMALYTICS_API_USER` are present in Keychain.
     - Store key: `security add-generic-password -a "$USER" -s "SCAMALYTICS_API_KEY" -w "<YOUR_API_KEY>" -U`
     - Store user: `security add-generic-password -a "$USER" -s "SCAMALYTICS_API_USER" -w "<YOUR_API_USER>" -U`
-  - Optional env: `WIFI_INTERFACE` (defaults to `en0`).
+  - Optional env: `WIFI_INTERFACE` (bootstrap override before helper auto-detection; defaults to `en0`).
 
 - `items/battery.lua`
   - Battery percent widget with charging icon. Left-click toggles a centered popup; right-click opens Battery settings.
@@ -73,6 +73,9 @@ There is also a global performance guard (`mission_control.lua`) that sets `_G.S
     - **ELECTRICAL**: Voltage/Current, Power draw (battery/system), Cell voltages with delta
     - **ADVANCED**: SoC (smart), Pack reserve, Charger info with reason codes, System input, Adapter info, Device/FW, Flags, Serial
   - Auto Maintain mode: Automatically enables/disables charging to maintain target percentage with 2% hysteresis.
+  - Maintain rule: At/above target enforces `adapter on + charging off`; below `(target - 2%)` enforces `adapter on + charging on`.
+  - While Auto Maintain is enabled, check frequency increases to 60s and maintain runs immediately after target changes.
+  - Manual Charging/Adapter toggles automatically disable Auto Maintain to avoid immediate override conflicts.
   - State persisted to `states/battery_control.lua` (target, enabled, history).
   - History recorded every 10 minutes (max 144 points = 24h).
   - Driven by the native helper `helpers/battery_info/bin/battery_info`.
@@ -99,6 +102,10 @@ There is also a global performance guard (`mission_control.lua`) that sets `_G.S
 
 - `items/1password.lua`
   - 1Password launcher. Left-click triggers 1Password Quick Access; right-click opens the app.
+
+- `items/warp.lua`
+  - Cloudflare WARP shortcut. Left-click or right-click opens the app's native menubar menu.
+  - If the native menubar icon is not available yet, it launches `/Applications/Cloudflare WARP.app` and retries until the menu icon appears.
 
 - `items/ccadapter.lua`
   - CC Adapter menubar shortcut. Left-click opens the CC Adapter tray menu.

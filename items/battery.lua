@@ -8,6 +8,7 @@ local config_path = os.getenv("HOME") .. "/.config/sketchybar"
 local state_file = config_path .. "/states/battery_control.lua"
 local battery_helper_path = config_path .. "/helpers/battery_info/bin/battery_info"
 local battery_control_path = config_path .. "/helpers/battery_control/bin/battery_control"
+local battery_bluetooth_path = config_path .. "/helpers/battery_bluetooth/bin/battery_bluetooth"
 
 -- State caching for main widget
 local last_charge = nil
@@ -105,6 +106,17 @@ local function fetch_battery_info(callback)
   end)
 end
 
+-- Fetch connected bluetooth device batteries
+local function fetch_bt_batteries(callback)
+  if not file_exists(battery_bluetooth_path) then
+    if callback then callback({}, 1) end
+    return
+  end
+  sbar.exec(battery_bluetooth_path, function(info, exit_code)
+    if callback then callback(info or {}, exit_code) end
+  end)
+end
+
 -- Fetch control status from battery_control helper
 local function fetch_control_status(callback)
   if not file_exists(battery_control_path) then
@@ -146,6 +158,10 @@ local function disable_adapter(callback)
   end)
 end
 
+local BATTERY_UPDATE_FREQ_IDLE = 600
+local BATTERY_UPDATE_FREQ_MAINTAIN = 60
+local HISTORY_RECORD_INTERVAL_SEC = 600
+
 -- Main battery widget
 local battery = sbar.add("item", "widgets.battery", {
   position = "right",
@@ -163,8 +179,13 @@ local battery = sbar.add("item", "widgets.battery", {
   },
   padding_left = 0,
   padding_right = 0,
-  update_freq = 600,
+  update_freq = maintain_state.enabled and BATTERY_UPDATE_FREQ_MAINTAIN or BATTERY_UPDATE_FREQ_IDLE,
 })
+
+local function sync_battery_update_freq()
+  local freq = maintain_state.enabled and BATTERY_UPDATE_FREQ_MAINTAIN or BATTERY_UPDATE_FREQ_IDLE
+  battery:set({ update_freq = freq })
+end
 
 -- Popup setup
 local popup_width = 420
@@ -229,7 +250,49 @@ end
 
 -- === POPUP CONTENT ===
 
--- Current status section (most important info at top)
+-- Connected devices section (at top)
+battery_popup.add_section("devices", "BLUETOOTH")
+
+-- Dynamic device rows (max 8 devices)
+local MAX_DEVICES = 8
+local device_rows = {}
+for i = 1, MAX_DEVICES do
+  device_rows[i] = sbar.add("item", "battery.popup.device." .. i, {
+    position = popup_pos,
+    width = popup_width,
+    icon = {
+      align = "left",
+      string = "",
+      width = name_width,
+      font = { family = settings.font.text, style = settings.font.style_map["Regular"], size = 12.0 },
+    },
+    label = {
+      align = "right",
+      string = "",
+      width = value_width,
+      font = { family = settings.font.numbers, style = settings.font.style_map["Regular"], size = 12.0 },
+    },
+    background = { drawing = false },
+    drawing = false,
+  })
+end
+
+local row_no_devices = sbar.add("item", "battery.popup.no_devices", {
+  position = popup_pos,
+  width = popup_width,
+  icon = {
+    align = "left",
+    string = "No devices connected",
+    width = popup_width,
+    font = { family = settings.font.text, style = settings.font.style_map["Regular"], size = 12.0 },
+    color = colors.grey,
+  },
+  label = { drawing = false },
+  background = { drawing = false },
+  drawing = false,
+})
+
+-- Current status section
 battery_popup.add_section("status", "STATUS")
 
 local row_status = add_row("status", "Status")
@@ -505,8 +568,70 @@ local function update_control_states()
   row_maintain:set({ label = { string = maintain_str .. " [toggle]" } })
 end
 
+-- Update connected device rows
+local function update_device_rows()
+  fetch_bt_batteries(function(devices, exit_code)
+    -- Hide all rows first
+    for i = 1, MAX_DEVICES do
+      device_rows[i]:set({ drawing = false })
+    end
+    row_no_devices:set({ drawing = false })
+
+    if exit_code ~= 0 or type(devices) ~= "table" or #devices == 0 then
+      row_no_devices:set({ drawing = true })
+      return
+    end
+
+    -- Sort devices alphabetically by name
+    table.sort(devices, function(a, b)
+      return (a.name or ""):lower() < (b.name or ""):lower()
+    end)
+
+    -- Show device rows
+    local count = math.min(#devices, MAX_DEVICES)
+    for i = 1, count do
+      local dev = devices[i]
+      local name = dev.name or "Unknown"
+      local level = tonumber(dev.level) or 0
+      local dev_type = dev.type or "device"
+      local charging = dev.charging == true
+
+      local display_name = name
+      if charging then
+        display_name = display_name .. " ⚡"
+      end
+
+      local level_color = colors.green
+      if level <= 20 then
+        level_color = colors.red
+      elseif level <= 40 then
+        level_color = colors.orange
+      end
+
+      local level_str = tostring(level) .. "%"
+
+      device_rows[i]:set({
+        drawing = true,
+        icon = { string = display_name },
+        label = { string = level_str, color = level_color },
+      })
+    end
+  end)
+end
+
 -- Toggle charging
+local function disable_maintain_for_manual_override()
+  if not maintain_state.enabled then return end
+  maintain_state.enabled = false
+  save_state()
+  sync_battery_update_freq()
+  row_maintain:set({ label = { string = "Off [toggle]" } })
+end
+
+local check_and_maintain
+
 local function toggle_charging()
+  disable_maintain_for_manual_override()
   fetch_control_status(function(info, exit_code)
     if exit_code ~= 0 or type(info) ~= "table" then return end
     if info.charging_enabled then
@@ -519,6 +644,7 @@ end
 
 -- Toggle adapter
 local function toggle_adapter()
+  disable_maintain_for_manual_override()
   fetch_control_status(function(info, exit_code)
     if exit_code ~= 0 or type(info) ~= "table" then return end
     if info.adapter_enabled then
@@ -533,7 +659,11 @@ end
 local function toggle_maintain()
   maintain_state.enabled = not maintain_state.enabled
   save_state()
+  sync_battery_update_freq()
   update_control_states()
+  if maintain_state.enabled and check_and_maintain then
+    check_and_maintain()
+  end
 end
 
 -- Set maintain target
@@ -543,17 +673,20 @@ local function set_maintain_target(pct)
   save_state()
   if maintain_state.enabled then
     update_control_states()
+    if check_and_maintain then
+      check_and_maintain()
+    end
   end
 end
 
 -- Maintain loop - check and adjust charging
 -- Logic follows battery.sh maintain_synchronous:
--- 1. At or above target: disable charging
+-- 1. At or above target: disable charging and force adapter on (normal power)
 -- 2. Below (target - hysteresis): enable charging
 -- 3. Between: keep current state (avoid rapid cycling)
 local MAINTAIN_HYSTERESIS = 2  -- Same as battery.sh behavior
 
-local function check_and_maintain()
+check_and_maintain = function()
   if not maintain_state.enabled then return end
   if not file_exists(battery_control_path) then return end
 
@@ -567,20 +700,34 @@ local function check_and_maintain()
     fetch_control_status(function(ctrl_info, ctrl_exit)
       if ctrl_exit ~= 0 or type(ctrl_info) ~= "table" then return end
 
-      local charging_enabled = ctrl_info.charging_enabled
+      local charging_enabled = ctrl_info.charging_enabled == true
+      local adapter_enabled = ctrl_info.adapter_enabled == true
 
       if percent >= maintain_state.target then
-        -- At or above target: stop charging if currently enabled
-        if charging_enabled then
-          disable_charging(function() end)
+        -- At or above target: enforce adapter on + charging off.
+        local function stop_charging_with_adapter_on()
+          if charging_enabled then
+            disable_charging(function() end)
+          end
+        end
+
+        if adapter_enabled then
+          stop_charging_with_adapter_on()
+        else
+          enable_adapter(function()
+            stop_charging_with_adapter_on()
+          end)
         end
       elseif percent < maintain_state.target - MAINTAIN_HYSTERESIS then
-        -- Below threshold: start charging if currently disabled
-        if not charging_enabled then
-          -- Enable charging and ensure adapter is on (not force-discharging)
+        -- Below threshold: ensure adapter on and charging enabled.
+        if not adapter_enabled then
           enable_adapter(function()
-            enable_charging(function() end)
+            if not charging_enabled then
+              enable_charging(function() end)
+            end
           end)
+        elseif not charging_enabled then
+          enable_charging(function() end)
         end
       end
       -- Between (target - hysteresis) and target: maintain current state
@@ -664,22 +811,21 @@ local function update_battery()
 end
 
 -- Routine update for maintain mode and history recording
-local history_counter = 0
+local last_history_record_at = os.time()
 local function routine_update()
   check_and_maintain()
 
-  -- Record history every 10 minutes (600 seconds / 60 second routine = 10 calls)
-  history_counter = history_counter + 1
-  if history_counter >= 10 then
-    history_counter = 0
-    fetch_battery_info(function(info, exit_code)
-      if exit_code ~= 0 or type(info) ~= "table" then return end
-      local percent = tonumber(info.percent)
-      if percent then
-        record_history(percent)
-      end
-    end)
-  end
+  local now = os.time()
+  if now - last_history_record_at < HISTORY_RECORD_INTERVAL_SEC then return end
+  last_history_record_at = now
+
+  fetch_battery_info(function(info, exit_code)
+    if exit_code ~= 0 or type(info) ~= "table" then return end
+    local percent = tonumber(info.percent)
+    if percent then
+      record_history(percent)
+    end
+  end)
 end
 
 battery:subscribe({ "forced", "routine", "power_source_change", "system_woke" }, function()
@@ -687,6 +833,9 @@ battery:subscribe({ "forced", "routine", "power_source_change", "system_woke" },
   routine_update()
 end)
 update_battery()
+if maintain_state.enabled then
+  check_and_maintain()
+end
 
 -- Popup click handler
 battery:subscribe("mouse.clicked", function(env)
@@ -707,6 +856,9 @@ battery:subscribe("mouse.clicked", function(env)
   battery_popup.show(function()
     -- Update control states
     update_control_states()
+
+    -- Update connected devices
+    update_device_rows()
 
     -- Fetch and display battery info
     row_status:set({ label = { string = "Loading…" } })

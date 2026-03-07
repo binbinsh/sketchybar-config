@@ -654,10 +654,10 @@ local function update_daily_forecast(daily_data)
     local day_name = day_names_zh[date.wday]
     local weather_icon = owm_icon_for(day.weather_id, true)
     -- Fixed width format: icon + temps, right aligned
-    local temp_str = string.format("%3d°/%d°", round_int(day.temp_max), round_int(day.temp_min))
+    local temp_str = string.format("%3d°/%2d°", round_int(day.temp_max), round_int(day.temp_min))
     forecast_rows[i]:set({
       icon = { string = day_name },
-      label = { string = weather_icon .. "  " .. temp_str },
+      label = { string = weather_icon .. "   " .. temp_str },
     })
   end
 end

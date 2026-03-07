@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <CoreWLAN/CoreWLAN.h>
 #import <SystemConfiguration/SystemConfiguration.h>
+#include "../network_interface_resolver.h"
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <net/if.h>
@@ -91,26 +92,6 @@ static NSString *string_from_interface_mode(CWInterfaceMode mode) {
     case kCWInterfaceModeHostAP: return @"HostAP";
     default: return nil;
   }
-}
-
-static NSString *copy_primary_interface(SCDynamicStoreRef store) {
-  if (!store) return nil;
-  CFStringRef keys[] = {
-    CFSTR("State:/Network/Global/IPv4"),
-    CFSTR("State:/Network/Global/IPv6"),
-  };
-  for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
-    CFDictionaryRef dict = SCDynamicStoreCopyValue(store, keys[i]);
-    if (!dict) continue;
-    CFStringRef iface = CFDictionaryGetValue(dict, CFSTR("PrimaryInterface"));
-    NSString *name = nil;
-    if (iface && CFGetTypeID(iface) == CFStringGetTypeID()) {
-      name = [(__bridge NSString *)iface copy];
-    }
-    CFRelease(dict);
-    if (name.length > 0) return name;
-  }
-  return nil;
 }
 
 static NSString *copy_router(SCDynamicStoreRef store, NSString *interface_name) {
@@ -229,7 +210,10 @@ int main(int argc, char **argv) {
     SCDynamicStoreRef store = SCDynamicStoreCreate(NULL, CFSTR("network_info"), NULL, NULL);
     NSString *interface_name = nil;
     if (auto_mode) {
-      interface_name = copy_primary_interface(store);
+      char resolved[IF_NAMESIZE] = { 0 };
+      if (sb_resolve_effective_interface(store, resolved, sizeof(resolved))) {
+        interface_name = [NSString stringWithUTF8String:resolved];
+      }
     } else {
       interface_name = interface_arg;
     }

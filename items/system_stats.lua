@@ -49,7 +49,7 @@ local cpu = make_graph("widgets.sys.cpu", "CPU", cpu_gpu_width, 0)
 local popup_width = 360
 local stats_popup = center_popup.create("system_stats.popup", {
   width = popup_width,
-  height = 500,
+  height = 620,
   popup_height = 26,
   title = "System Stats",
   meta = "",
@@ -59,8 +59,10 @@ stats_popup.meta_item:set({ drawing = false })
 stats_popup.body_item:set({ drawing = false })
 
 local popup_pos = stats_popup.position
-local name_width = 220
+local name_width = 300
 local value_width = popup_width - name_width
+-- 自动计算截断长度：字体大小11，每个字符约7像素
+local max_name_chars = math.floor(name_width / 7)
 
 -- Helper to add info rows
 local function add_row(key, title)
@@ -116,7 +118,7 @@ local function refresh_popup()
       if idx > 10 then break end
       local val, name = line:match("^%s*([%d%.]+)%s+(.+)$")
       if val and name then
-        if #name > 28 then name = name:sub(1, 25) .. "..." end
+        if #name > max_name_chars then name = name:sub(1, max_name_chars - 3) .. "..." end
         cpu_rows[idx]:set({
           icon = { string = name },
           label = { string = val .. "%" },
@@ -144,7 +146,7 @@ local function refresh_popup()
       if idx > 10 then break end
       local val, name = line:match("^%s*([%d%.]+)%s+(.+)$")
       if val and name then
-        if #name > 28 then name = name:sub(1, 25) .. "..." end
+        if #name > max_name_chars then name = name:sub(1, max_name_chars - 3) .. "..." end
         local kb = tonumber(val) or 0
         local display_val
         if kb >= 1048576 then
@@ -161,7 +163,7 @@ local function refresh_popup()
         idx = idx + 1
       end
     end
-    for i = idx, 5 do
+    for i = idx, 10 do
       mem_rows[i]:set({ icon = { string = "" }, label = { string = "" } })
     end
   end)

@@ -75,8 +75,8 @@ end
 
 local function first_menu_title(menus)
   for menu in string.gmatch(menus or "", "[^\r\n]+") do
-    menu = trim(menu)
-    if menu ~= "" then return menu end
+    local menu_title = trim(menu)
+    if menu_title ~= "" then return menu_title end
   end
   return ""
 end
@@ -87,10 +87,10 @@ local function render_menus(menus)
 
   local id = 1
   for menu in string.gmatch(menus or "", "[^\r\n]+") do
-    menu = trim(menu)
-    if menu ~= "" then
+    local menu_title = trim(menu)
+    if menu_title ~= "" then
       if id <= max_items then
-        menu_items[id]:set({ label = menu, drawing = true })
+        menu_items[id]:set({ label = menu_title, drawing = true })
         id = id + 1
       else
         break

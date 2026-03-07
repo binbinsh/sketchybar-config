@@ -1,4 +1,28 @@
-#!/usr/bin/env lua
+#!/Users/binbinsh/.local/share/sketchybar_lua/lua5.5
+
+local function resolve_config_dir()
+  local config_dir = os.getenv("CONFIG_DIR")
+  if config_dir and config_dir ~= "" then
+    return config_dir
+  end
+
+  local script_path = (arg and arg[0]) or ""
+  if script_path == "" then
+    local source = debug.getinfo(1, "S").source or ""
+    if source:sub(1, 1) == "@" then
+      script_path = source:sub(2)
+    end
+  end
+
+  return script_path:match("^(.*)/[^/]+$") or "."
+end
+
+local config_dir = resolve_config_dir()
+package.path = table.concat({
+  config_dir .. "/?.lua",
+  config_dir .. "/?/init.lua",
+  package.path,
+}, ";")
 
 -- Load the sketchybar-package and prepare the helper binaries
 require("init")
