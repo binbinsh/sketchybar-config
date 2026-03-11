@@ -5,6 +5,3 @@ bin/spaces_count: spaces_count.c ../sketchybar.h | bin
 
 bin:
 	mkdir -p bin
-
-
-

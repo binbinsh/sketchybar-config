@@ -20,7 +20,7 @@ There is also a global performance guard (`mission_control.lua`) that sets `_G.S
   - Driven by the native helper `helpers/menus/bin/menus`.
 
 - `items/spaces.lua`
-  - Space switcher (right side): shows Space number + a user-defined name.
+  - Space switcher (right side): primary display shows Space number + a user-defined name; secondary displays show only the number.
   - Left-click switches Space (Command+Number); right-click renames and persists to `states/spaces_names.lua`.
   - Uses the native helper `helpers/spaces_count/bin/spaces_count` to detect the Space count.
 
