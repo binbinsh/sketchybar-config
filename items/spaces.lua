@@ -7,26 +7,23 @@ local spaces_by_display = {}
 -- - Primary display keeps names.
 -- - Secondary displays show the number only.
 local primary_display_id = 1
+local max_displays = 6
 
 local spaces_count_helper_path = os.getenv("HOME") .. "/.config/sketchybar/helpers/spaces_count/bin/spaces_count"
 local group_gap = (settings.paddings or 3) * 3
-local function detect_space_metrics()
+local function detect_space_count()
   local p = io.popen(string.format("%q 2>/dev/null", spaces_count_helper_path))
-  if not p then return 10, 1 end
+  if not p then return 10 end
   local out = p:read("*a") or ""
   p:close()
-  local spaces, displays = out:match("(%d+)%s+(%d+)")
-  local space_count = tonumber(spaces)
-  local display_count = tonumber(displays)
-  if not space_count then space_count = 10 end
-  if not display_count then display_count = 1 end
-  if space_count < 1 then space_count = 1 end
-  if space_count > 10 then space_count = 10 end
-  if display_count < 1 then display_count = 1 end
-  return space_count, display_count
+  local space_count = tonumber(out:match("(%d+)"))
+  if not space_count then return 10 end
+  if space_count < 1 then return 1 end
+  if space_count > 10 then return 10 end
+  return space_count
 end
 
-local space_count, display_count = detect_space_metrics()
+local space_count = detect_space_count()
 
 local state_dir = os.getenv("HOME") .. "/.config/sketchybar/states"
 local names_state_path = state_dir .. "/spaces_names.lua"
@@ -128,7 +125,7 @@ local function padding_for_display(display_id)
 end
 
 local function refresh_space_labels(space_index)
-  for display_id = 1, display_count do
+  for display_id = 1, max_displays do
     local display_spaces = spaces_by_display[display_id]
     local space = display_spaces and display_spaces[space_index] or nil
     if space then
@@ -142,7 +139,7 @@ local function refresh_space_labels(space_index)
   end
 end
 
-for display_id = 1, display_count do
+for display_id = 1, max_displays do
   local display_spaces = {}
 
   for i = space_count, 1, -1 do
