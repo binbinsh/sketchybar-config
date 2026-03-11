@@ -8,7 +8,6 @@ local config_path = os.getenv("HOME") .. "/.config/sketchybar"
 local state_file = config_path .. "/states/battery_control.lua"
 local battery_helper_path = config_path .. "/helpers/battery_info/bin/battery_info"
 local battery_control_path = config_path .. "/helpers/battery_control/bin/battery_control"
-local battery_bluetooth_path = config_path .. "/helpers/battery_bluetooth/bin/battery_bluetooth"
 
 -- State caching for main widget
 local last_charge = nil
@@ -103,17 +102,6 @@ local function fetch_battery_info(callback)
   end
   sbar.exec(battery_helper_path, function(info, exit_code)
     if callback then callback(info, exit_code) end
-  end)
-end
-
--- Fetch connected bluetooth device batteries
-local function fetch_bt_batteries(callback)
-  if not file_exists(battery_bluetooth_path) then
-    if callback then callback({}, 1) end
-    return
-  end
-  sbar.exec(battery_bluetooth_path, function(info, exit_code)
-    if callback then callback(info or {}, exit_code) end
   end)
 end
 
@@ -249,48 +237,6 @@ local function add_control_row(key, title, initial_value)
 end
 
 -- === POPUP CONTENT ===
-
--- Connected devices section (at top)
-battery_popup.add_section("devices", "BLUETOOTH")
-
--- Dynamic device rows (max 8 devices)
-local MAX_DEVICES = 8
-local device_rows = {}
-for i = 1, MAX_DEVICES do
-  device_rows[i] = sbar.add("item", "battery.popup.device." .. i, {
-    position = popup_pos,
-    width = popup_width,
-    icon = {
-      align = "left",
-      string = "",
-      width = name_width,
-      font = { family = settings.font.text, style = settings.font.style_map["Regular"], size = 12.0 },
-    },
-    label = {
-      align = "right",
-      string = "",
-      width = value_width,
-      font = { family = settings.font.numbers, style = settings.font.style_map["Regular"], size = 12.0 },
-    },
-    background = { drawing = false },
-    drawing = false,
-  })
-end
-
-local row_no_devices = sbar.add("item", "battery.popup.no_devices", {
-  position = popup_pos,
-  width = popup_width,
-  icon = {
-    align = "left",
-    string = "No devices connected",
-    width = popup_width,
-    font = { family = settings.font.text, style = settings.font.style_map["Regular"], size = 12.0 },
-    color = colors.grey,
-  },
-  label = { drawing = false },
-  background = { drawing = false },
-  drawing = false,
-})
 
 -- Current status section
 battery_popup.add_section("status", "STATUS")
@@ -568,57 +514,6 @@ local function update_control_states()
   row_maintain:set({ label = { string = maintain_str .. " [toggle]" } })
 end
 
--- Update connected device rows
-local function update_device_rows()
-  fetch_bt_batteries(function(devices, exit_code)
-    -- Hide all rows first
-    for i = 1, MAX_DEVICES do
-      device_rows[i]:set({ drawing = false })
-    end
-    row_no_devices:set({ drawing = false })
-
-    if exit_code ~= 0 or type(devices) ~= "table" or #devices == 0 then
-      row_no_devices:set({ drawing = true })
-      return
-    end
-
-    -- Sort devices alphabetically by name
-    table.sort(devices, function(a, b)
-      return (a.name or ""):lower() < (b.name or ""):lower()
-    end)
-
-    -- Show device rows
-    local count = math.min(#devices, MAX_DEVICES)
-    for i = 1, count do
-      local dev = devices[i]
-      local name = dev.name or "Unknown"
-      local level = tonumber(dev.level) or 0
-      local dev_type = dev.type or "device"
-      local charging = dev.charging == true
-
-      local display_name = name
-      if charging then
-        display_name = display_name .. " ⚡"
-      end
-
-      local level_color = colors.green
-      if level <= 20 then
-        level_color = colors.red
-      elseif level <= 40 then
-        level_color = colors.orange
-      end
-
-      local level_str = tostring(level) .. "%"
-
-      device_rows[i]:set({
-        drawing = true,
-        icon = { string = display_name },
-        label = { string = level_str, color = level_color },
-      })
-    end
-  end)
-end
-
 -- Toggle charging
 local function disable_maintain_for_manual_override()
   if not maintain_state.enabled then return end
@@ -856,9 +751,6 @@ battery:subscribe("mouse.clicked", function(env)
   battery_popup.show(function()
     -- Update control states
     update_control_states()
-
-    -- Update connected devices
-    update_device_rows()
 
     -- Fetch and display battery info
     row_status:set({ label = { string = "Loading…" } })
