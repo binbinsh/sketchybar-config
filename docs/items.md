@@ -16,7 +16,8 @@ There is also a global performance guard (`mission_control.lua`) that sets `_G.S
 
 - `items/menus.lua`
   - Renders the current app menu items on the left; click selects a menu entry.
-  - Updates on `front_app_switched` with debounce + short retries to avoid stale menus during app transitions (notably for some Electron apps).
+  - Updates on `front_app_switched` with debounce + short retries to avoid stale menus during app transitions.
+  - Keeps sampling briefly after a successful app switch and prefers the richest menu snapshot, which helps apps such as Zotero that can populate their native menu bar incrementally on first activation.
   - Driven by the native helper `helpers/menus/bin/menus`.
 
 - `items/spaces.lua`
