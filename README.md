@@ -15,7 +15,7 @@ curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/instal
 ## Features
 
 - Weather: Location-aware current conditions and a centered popup with 5-day outlook.
-- Battery: Compact percentage + detailed popup (native helper) + SMC control.
+- Battery: Compact percentage + detailed popup (native helper).
 - System stats: CPU/GPU/temperature and memory graphs via the native helper.
 - Wi‑Fi: Throughput widget + details popup (native helpers).
 - Pomodoro: Compact timer with click controls and persisted state.

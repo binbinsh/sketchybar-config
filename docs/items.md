@@ -68,19 +68,10 @@ There is also a global performance guard (`mission_control.lua`) that sets `_G.S
   - Battery percent widget with charging icon. Left-click toggles a centered popup; right-click opens Battery settings.
   - Popup sections:
     - **STATUS**: Status (Charging/Discharging/Not charging/Charged), Charge %, Power source (with wattage), Time remaining
-    - **POWER CONTROLS**: Charging toggle, Adapter toggle (requires sudo + `battery_control` helper)
-    - **CHARGE LIMIT**: Draggable slider (20-100%) + Auto Maintain toggle with hysteresis logic
     - **BATTERY DETAILS**: Health %, Cycle count (current/design), Capacity (current/max mAh), Design/Nominal capacity, Temperature
     - **ELECTRICAL**: Voltage/Current, Power draw (battery/system), Cell voltages with delta
     - **ADVANCED**: SoC (smart), Pack reserve, Charger info with reason codes, System input, Adapter info, Device/FW, Flags, Serial
-  - Auto Maintain mode: Automatically enables/disables charging to maintain target percentage with 2% hysteresis.
-  - Maintain rule: At/above target enforces `adapter on + charging off`; below `(target - 2%)` enforces `adapter on + charging on`.
-  - While Auto Maintain is enabled, check frequency increases to 60s and maintain runs immediately after target changes.
-  - Manual Charging/Adapter toggles automatically disable Auto Maintain to avoid immediate override conflicts.
-  - State persisted to `states/battery_control.lua` (target, enabled, history).
-  - History recorded every 10 minutes (max 144 points = 24h).
   - Driven by the native helper `helpers/battery_info/bin/battery_info`.
-  - Power control requires `helpers/battery_control/bin/battery_control` with sudo privileges.
 
 - `items/volume.lua`
   - Output volume widget with icon. Scroll to adjust volume (throttled; hold Ctrl for fine 1% steps).
