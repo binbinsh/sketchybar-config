@@ -55,7 +55,7 @@ local battery = sbar.add("item", "widgets.battery", {
 local popup_width = 420
 local battery_popup = center_popup.create("battery.popup", {
   width = popup_width,
-  height = 660,
+  height = 744,
   popup_height = 26,
   title = "Battery",
   meta = "",
@@ -87,6 +87,15 @@ local function add_row(key, title)
     },
     background = { drawing = false },
   })
+end
+
+local function set_opt_row(row, value)
+  if not row then return end
+  if value and value ~= "" and value ~= "-" then
+    row:set({ drawing = true, label = { string = tostring(value) } })
+  else
+    row:set({ drawing = false })
+  end
 end
 
 -- === POPUP CONTENT ===
@@ -121,6 +130,12 @@ battery_popup.add_section("advanced", "ADVANCED")
 local row_soc = add_row("soc", "SoC (smart)")
 local row_pack = add_row("pack", "Pack reserve")
 local row_charger = add_row("charger", "Charger")
+local row_not_charging = add_row("not_charging", "Not charging")
+local row_slow_charging = add_row("slow_charging", "Slow charging")
+local row_inhibit = add_row("inhibit", "Inhibit")
+row_not_charging:set({ drawing = false })
+row_slow_charging:set({ drawing = false })
+row_inhibit:set({ drawing = false })
 local row_system = add_row("system", "System input")
 local row_adapter_info = add_row("adapter_info", "Adapter info")
 local row_device = add_row("device", "Device / FW")
@@ -219,30 +234,24 @@ local function format_reason_mask(info, value, prefix)
   local n = tonumber(value)
   if not n then return nil end
   if n == 0 then return nil end
-
-  local bits = {}
-  for i = 0, 62 do
-    local bit = 1 << i
-    if bit == 0 then break end
-    if (n & bit) ~= 0 then
-      bits[#bits + 1] = tostring(i)
-    end
+  local i = math.tointeger(n)
+  if not i then return nil end
+  local hi = (i >> 32) & 0xffffffff
+  local lo = i & 0xffffffff
+  local raw
+  if hi ~= 0 then
+    raw = string.format("0x%08X%08X", hi, lo)
+  else
+    raw = string.format("0x%08X", lo)
   end
-
-  local hex = string.format("0x%08X", n & 0xffffffff)
-  local bit_str = (#bits == 1) and ("b" .. bits[1]) or ("b[" .. table.concat(bits, ",") .. "]")
-  local raw = hex .. "/" .. bit_str
 
   if prefix == "nr" then
     local hint = guess_not_charging_reason(info, n)
     if hint then
-      if raw == "0x01000000/b24" then
-        return prefix .. "=" .. hint
-      end
-      return prefix .. "=" .. hint .. " " .. raw
+      return hint .. " (" .. raw .. ")"
     end
   end
-  return prefix .. "=" .. raw
+  return raw
 end
 
 local function format_charger_basic(info)
@@ -254,19 +263,6 @@ local function format_charger_basic(info)
   if v then parts[#parts + 1] = string.format("%.2fV", v / 1000.0) end
   if c then parts[#parts + 1] = string.format("%dmA", c) end
   if id then parts[#parts + 1] = string.format("id=%d", id) end
-  if #parts == 0 then return "-" end
-  return table.concat(parts, " ")
-end
-
-local function format_charge_reason(info)
-  if type(info) ~= "table" then return "-" end
-  local nr = format_reason_mask(info, info.charger_not_charging_reason, "nr")
-  local slow = format_reason_mask(info, info.charger_slow_charging_reason, "slow")
-  local inh = format_reason_mask(info, info.charger_inhibit_reason, "inh")
-  local parts = {}
-  if nr then parts[#parts + 1] = nr end
-  if slow then parts[#parts + 1] = slow end
-  if inh then parts[#parts + 1] = inh end
   if #parts == 0 then return "-" end
   return table.concat(parts, " ")
 end
@@ -493,12 +489,10 @@ battery:subscribe("mouse.clicked", function(env)
         row_pack:set({ label = { string = "-" } })
       end
 
-      local charger_line = format_charger_basic(info)
-      local reason_line = format_charge_reason(info)
-      if reason_line ~= "-" and reason_line ~= "" then
-        charger_line = charger_line .. " " .. reason_line
-      end
-      row_charger:set({ label = { string = ellipsize(charger_line, 72) } })
+      row_charger:set({ label = { string = ellipsize(format_charger_basic(info), 40) } })
+      set_opt_row(row_not_charging, format_reason_mask(info, info.charger_not_charging_reason, "nr"))
+      set_opt_row(row_slow_charging, format_reason_mask(info, info.charger_slow_charging_reason, "slow"))
+      set_opt_row(row_inhibit, format_reason_mask(info, info.charger_inhibit_reason, "inh"))
       row_system:set({ label = { string = format_system(info) } })
       row_adapter_info:set({ label = { string = format_adapter(info) } })
       row_device:set({ label = { string = format_device(info) } })
