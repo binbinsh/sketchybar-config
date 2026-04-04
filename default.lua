@@ -11,8 +11,8 @@ sbar.default({
       size = 14.0
     },
     color = colors.white,
-    padding_left = settings.paddings,
-    padding_right = settings.paddings,
+    padding_left = settings.icon_paddings,
+    padding_right = settings.icon_paddings,
     background = { image = { corner_radius = 9 } },
   },
   label = {

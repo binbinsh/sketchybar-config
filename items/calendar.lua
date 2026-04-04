@@ -20,9 +20,9 @@ local cal = sbar.add("item", "widgets.calendar", {
   },
   label = {
     font = { family = settings.font.numbers },
-    width = 150,
+    width = 140,
     padding_left = 2,
-    padding_right = 6,
+    padding_right = 5,
     align = "right",
     string = "Loading…",
   },

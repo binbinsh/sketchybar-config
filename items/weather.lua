@@ -524,7 +524,7 @@ local weather = sbar.add("item", "widgets.weather", {
   position = "right",
   icon = {
     font = { style = settings.font.style_map["Regular"], size = 12.0 },
-    padding_right = settings.paddings,
+    padding_right = settings.icon_paddings,
     color = colors.white,
     string = "☁️",
   },
@@ -991,5 +991,4 @@ end)
 -- Initial paint.
 set_widget("☁️", colors.white, "--°C")
 refresh(true)
-
 

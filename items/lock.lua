@@ -15,8 +15,8 @@ local lock = sbar.add("item", "lock", {
   },
   label = { drawing = false },
   background = { drawing = false },
-  padding_left = settings.paddings,
-  padding_right = settings.paddings,
+  padding_left = settings.icon_paddings,
+  padding_right = settings.icon_paddings,
   updates = true,
 })
 
@@ -31,4 +31,3 @@ end)
 lock:subscribe("mouse.clicked", function(env)
   sbar.exec([[osascript -e 'tell application "System Events" to keystroke "q" using {command down, control down}']], function() end)
 end)
-

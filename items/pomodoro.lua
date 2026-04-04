@@ -215,7 +215,7 @@ local pomodoro = sbar.add("item", "pomodoro", {
       style = settings.font.style_map["Regular"],
       size = 15.0,
     },
-    padding_right = settings.paddings,
+    padding_right = settings.icon_paddings,
     y_offset = 1,
   },
   label = { drawing = false },
