@@ -9,10 +9,11 @@ Lua-first SketchyBar setup for a consistent, customizable bar across displays (b
 Install the config (Homebrew required):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/install_sketchybar.sh | bash
+curl -fsSL https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/bootstrap.sh | bash
 ```
 
-The installer sets up SketchyBar, SbarLua, and the required fonts, including `Sarasa Term SC`.
+The installer sets up SketchyBar, SbarLua, and the required fonts, including `Sarasa Term SC` and the latest `sketchybar-app-font`.
+Window management is not installed by this repo. Use `binbinsh/rectangle` separately and apply the recommended settings in `docs/rectangle.md`.
 
 ## Features
 
@@ -31,4 +32,5 @@ The installer sets up SketchyBar, SbarLua, and the required fonts, including `Sa
 
 - Items and widgets: `docs/items.md`.
 - Location helper: `docs/location.md`.
+- Rectangle settings: `docs/rectangle.md`.
 - System stats: `docs/system_stats.md`.
