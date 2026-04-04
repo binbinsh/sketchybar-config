@@ -7,17 +7,18 @@ return {
   -- Shortcuts (right-side compact icon chunk)
   shortcuts_icon_size = 15.0,
 
-  -- Font configuration (JetBrains Mono Nerd Font)
+  -- Text uses Sarasa Term SC; icons stay on Nerd Font for glyph coverage.
   font = {
-    text = "JetBrainsMono Nerd Font Mono", -- Used for text
-    numbers = "JetBrainsMono Nerd Font Mono", -- Used for numbers
+    text = "Sarasa Term SC", -- Used for text
+    numbers = "Sarasa Term SC", -- Used for numbers
     icons = "JetBrainsMono Nerd Font Mono", -- Used for icons (NerdFont glyphs)
+    -- Match the font members exposed by macOS for the installed Sarasa Term SC family.
     style_map = {
-      ["Regular"] = "Light",
-      ["Semibold"] = "Medium",
-      ["Bold"] = "SemiBold",
+      ["Regular"] = "Regular",
+      ["Semibold"] = "SemiBold",
+      ["Bold"] = "Bold",
       ["Heavy"] = "Bold",
-      ["Black"] = "ExtraBold",
+      ["Black"] = "Bold",
     },
   },
 }
