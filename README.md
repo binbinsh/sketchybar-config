@@ -13,7 +13,7 @@ curl -fsSL https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/boo
 ```
 
 The installer sets up SketchyBar, SbarLua, and the required fonts, including `Sarasa Term SC` and the latest `sketchybar-app-font`.
-Window management is not installed by this repo. Use `binbinsh/rectangle` separately and apply the recommended settings in `docs/rectangle.md`.
+Window management is not installed by this repo. Use [binbinsh/rectangle](https://github.com/binbinsh/rectangle) separately and apply the recommended settings in `docs/rectangle.md`.
 
 ## Features
 
