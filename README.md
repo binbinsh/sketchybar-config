@@ -9,8 +9,10 @@ Lua-first SketchyBar setup for a consistent, customizable bar across displays (b
 Install the config (Homebrew required):
 
 ```bash
-curl -L https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/install_sketchybar.sh | sh
+curl -fsSL https://raw.githubusercontent.com/binbinsh/sketchybar-config/main/install_sketchybar.sh | bash
 ```
+
+The installer sets up SketchyBar, SbarLua, and the required fonts, including `Sarasa Term SC`.
 
 ## Features
 
